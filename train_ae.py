@@ -1,14 +1,22 @@
-from keras import backend as K
-from keras import regularizers
-from keras.models import Model
-from keras.layers import Input, Dense, Conv2D, MaxPooling2D, UpSampling2D
-from keras.layers import Flatten, Conv2DTranspose, Conv3D, UpSampling3D, MaxPooling3D
-from keras.layers import DepthwiseConv2D, SeparableConv2D
-
 import h5py
-import numpy as np
 
+import keras.layers as layers
+import numpy as np
+import tensorflow as tf
+
+from keras import backend
+from keras.models import Model
+from keras.utils.generic_utils import get_custom_objects
 import matplotlib.pyplot as plt
+
+# cd simulations
+
+def swish(x, beta=1):
+    return x * tf.math.sigmoid(beta * x)
+
+
+get_custom_objects().update({"swish": layers.Activation(swish)})
+
 
 def split(sz, n_train=0.8, n_valid=0.1, shuffle=True):
     # Percentage for the test dataset
@@ -16,17 +24,18 @@ def split(sz, n_train=0.8, n_valid=0.1, shuffle=True):
     # Generate an index array
     idx = np.array(range(sz))
     # Get the datasets indexes
-    idx_tst = np.random.choice(idx, int(n_test*sz), replace=False)
+    idx_tst = np.random.choice(idx, int(n_test * sz), replace=False)
     idx = np.setdiff1d(idx, idx_tst, assume_unique=True)
-    
-    idx_vld = np.random.choice(idx, int(n_valid*sz), replace=False)
+
+    idx_vld = np.random.choice(idx, int(n_valid * sz), replace=False)
     idx_trn = np.setdiff1d(idx, idx_vld, assume_unique=True)
-    
+
     # # Shuffle the train dataset
     if shuffle:
         np.random.shuffle(idx_trn)
-        
+
     return idx_trn, idx_vld, idx_tst
+
 
 def slicer(shp, idxs):
     # It is assumed that the first dimension is the samples
@@ -34,121 +43,138 @@ def slicer(shp, idxs):
     # Iterate over the datasets
     for idx in idxs:
         idx.sort()
-        slc += [tuple([idx] + [slice(None)]*(len(shp) - 1))]
+        slc += [tuple([idx] + [slice(None)] * (len(shp) - 2) + [2])]
     return tuple(slc)
 
 
-dt_fl = 'nn_data.h5'
-dt_dst = 'scaled_data'
+dt_fl = "nn_data.h5"
+dt_dst = "scaled_data"
 
 n_train = 0.8
 n_valid = 0.1
 
 # Open data file
-f = h5py.File(dt_fl, 'r')
+f = h5py.File(dt_fl, "r")
 dt = f[dt_dst]
+
 
 idxs = split(dt.shape[0], n_train, n_valid)
 slc_trn, slc_vld, slc_tst = slicer(dt.shape, idxs)
 
-print('The input data has shape of: {}'.format(dt.shape[1::]))
-# CNN rules
+trn = dt[slc_trn][:, :, :, np.newaxis]
+vld = dt[slc_vld][:, :, :, np.newaxis]
 
-# d = 100
-# p = 0
-# s = 1
-# kk = [3, 2 2]
-# np.floor((d - 2*p - k)/s) + 1
+act = 'tanh'
+# Encoder
+tf.keras.backend.clear_session()
+inputs = layers.Input(shape=(200, 100, 1))
+e = layers.Conv2D(9, (5, 5), strides= 2, activation=act, padding='same')(inputs)
+e = layers.Conv2D(18, (5, 5), strides=2, activation=act,padding='same')(e)
+e = layers.Conv2D(27,(5, 5), strides=5, activation=act, padding='same')(e)
 
-# # adapt this if using `channels_first` image data format
+# # Latent space
+l = layers.Flatten()(e)
+l = layers.Dense(100, activation='tanh')(l)
 
-# input_dt = Input(shape=dt.shape[1::])
-# x = Conv2D(6, (6, 3), activation='relu', data_format="channels_last",
-#            padding='same')(input_dt)
-# x = MaxPooling2D((2, 2), padding='same')(x)
-# x = Conv2D(12, (6, 3), activation='relu', padding='same')(x)
-# x = MaxPooling2D((2, 2), padding='same')(x)
-# x = Conv2D(30, (6, 3), activation='relu', padding='same')(x)
-# encoded = MaxPooling2D((5, 5), padding='same')(x)
+# # # Decoder
+d = layers.Dense(1350, activation='tanh')(l)
+d = layers.Reshape((10, 5, 27))(d)
+d = layers.Conv2DTranspose(27, (5, 5), strides=5, activation=act)(d)
+d = layers.Conv2DTranspose(18, (5, 5), strides=2, activation=act, padding='same')(d)
+d = layers.Conv2DTranspose(9, (5, 5), strides=2, activation=act, padding='same')(d)
+decoded = layers.Conv2DTranspose(1, (5, 5), activation='linear', padding='same')(d)
 
-# # at this point the representation is (4, 4, 8) i.e. 128-dimensional
+ae = Model(inputs, decoded)
+enc = Model(inputs, l)
 
-# x = Conv2D(30, (3, 3), activation='relu', padding='same')(encoded)
-# x = UpSampling2D((5, 5))(x)
-# x = Conv2D(6, (3, 3), activation='relu', padding='same')(x)
-# x = UpSampling2D((2, 2))(x)
-# x = Conv2D(3, (3, 3), activation='relu', padding='same')(x)
-# x = UpSampling2D((2, 2))(x)
-# decoded = Conv2D(3, (3, 3), activation='linear', padding='same')(x)
+ae.summary()
 
-# autoencoder = Model(input_dt, decoded)
-# autoencoder.compile(optimizer='adam', loss='mean_squared_error')
+ae.compile(optimizer="adam", loss="mse")
+ae.fit(trn, trn,
+        epochs=30,
+        batch_size=64,
+        shuffle=True,
+        validation_data=(vld, vld))
 
-# input_dt = Input(shape=dt.shape[1::])
-# x = Conv2D(24, (6, 3), activation='relu', padding='same')(input_dt)
-# x = MaxPooling2D((2, 2), padding='same')(x)
-# x = Conv2D(12, (6, 3), activation='relu', padding='same')(x)
-# x = MaxPooling2D((2, 2), padding='same')(x)
-# x = Conv2D(6, (6, 3), activation='relu', padding='same')(x)
-# encoded = MaxPooling2D((2, 1), padding='same')(x)
+tst = dt[slc_tst][:, :, :, np.newaxis]
+ae.evaluate(tst, tst)
 
-# x = Conv2D(6, (6, 3), activation='relu', padding='same')(encoded)
-# x = UpSampling2D((2, 1))(x)
-# x = Conv2D(12, (6, 3), activation='relu', padding='same')(x)
-# x = UpSampling2D((2, 2))(x)
-# x = Conv2D(24, (6, 3), activation='relu', padding='same')(x)
-# x = UpSampling2D((2, 2))(x)
-# decoded = Conv2D(3, (6, 3), activation='linear', padding='same')(x)
+dt_in = dt[129, :, :, 2]
+dt_out = ae.predict(dt_in[np.newaxis, :, :, np.newaxis])
+np.mean((dt_in - dt_out[0, :, :, 0])**2)
 
-# # autoencoder = Model(input_dt, decoded)
-# autoencoder = Model(input_dt, decoded)
-# autoencoder.summary()
-# autoencoder.compile(optimizer='adam', loss='mean_squared_error')
-
-input_dt = Input(shape=dt.shape[1::])
-x = SeparableConv2D(24, (6, 3), activation='selu',
-                    padding='same', data_format='channels_last')(input_dt)
-x = MaxPooling2D((2, 2), padding='same')(x)
-x = SeparableConv2D(12, (6, 3), activation='selu', padding='same')(x)
-x = MaxPooling2D((2, 2), padding='same')(x)
-x = SeparableConv2D(6, (6, 3), activation='selu', padding='same')(x)
-encoded = MaxPooling2D((2, 1), padding='same')(x)
-
-x = SeparableConv2D(6, (6, 3), activation='selu', padding='same')(encoded)
-x = UpSampling2D((2, 1))(x)
-x = SeparableConv2D(12, (6, 3), activation='selu', padding='same')(x)
-x = UpSampling2D((2, 2))(x)
-x = SeparableConv2D(24, (6, 3), activation='selu', padding='same')(x)
-x = UpSampling2D((2, 2))(x)
-decoded = SeparableConv2D(3, (6, 3), activation='linear', padding='same')(x)
-
-# autoencoder = Model(input_dt, encoded)
-# autoencoder.summary()
-
-autoencoder = Model(input_dt, decoded)
-autoencoder.summary()
-autoencoder.compile(optimizer='adam', loss='mean_squared_error')
-
-autoencoder.fit(dt[slc_trn], dt[slc_trn],
-                epochs=50,
-                batch_size=32,
-                shuffle=True,
-                validation_data=(dt[slc_vld], dt[slc_vld]))
-
-autoencoder.save('tst_keras_14.h5')
-
-# 7 o melhor
-# 9 o melhor A tendência de aumentar o número de filtros melhora o resultado
-# 11 o melhor mas devido ao aumento do número de épocas
-# 12 o melhor além de ter sido otimizado com 50 epocas
-# Try with normalization for all
-# EStranho... Batch_size menores os valores são menores
-
-autoencoder.evaluate(dt[slc_tst], dt[slc_tst])
+fig, ax = plt.subplots(2, figsize=(10,10))
+ax[0].pcolormesh(dt_in[ :, :].T, rasterized=True)
+ax[1].pcolormesh(dt_out[0, :, :, 0].T, rasterized=True)
 
 
-dt_in = dt[10, :, :, :]
-dt_out = autoencoder.predict(dt_in[np.newaxis, :])
 
-plt.pcolormesh(dt_in[:, :, 2].T, rasterized=True)
-plt.pcolormesh(dt_out[0, :, :, 2].T, rasterized=True)
+
+
+
+# Model 1
+# # Encoder
+# inputs = layers.Input(shape=dt.shape[1:])
+# e = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(inputs)
+# e = layers.MaxPooling2D((2, 2))(e)
+# e = layers.Conv2D(32, (3, 3), activation='relu',padding='same')(e)
+# e = layers.MaxPooling2D((2, 2))(e)
+# e = layers.Conv2D(16, (3, 3), activation='relu', padding='same')(e)
+# e = layers.MaxPooling2D((5, 5))(e)
+
+# # Latent space
+# l = layers.Flatten()(e)
+# l = layers.Dense(400, activation='linear')(l)
+
+# # Decoder
+# d = layers.Reshape((10, 5, 16))(l)
+# d = layers.Conv2DTranspose(16, (3, 3), strides=5, activation='relu')(d)
+# d = layers.Conv2DTranspose(32, (3, 3), strides=2, activation='relu', padding='same')(d)
+# d = layers.Conv2DTranspose(64, (3, 3), strides=2, activation='relu', padding='same')(d)
+# decoded = layers.Conv2DTranspose(3, (3, 3), activation='linear', padding='same')(d)
+
+
+# Model 2
+# Encoder
+# inputs = layers.Input(shape=dt.shape[1:])
+# inputs = layers.Input(shape=(200, 100, 1))
+# e = layers.Conv2D(3, (2, 2), strides= 2, activation=act, padding='same')(inputs)
+# e = layers.Conv2D(9, (2, 2), strides=2, activation=act,padding='same')(e)
+# e = layers.Conv2D(27,(2, 2), strides=5, activation=act, padding='same')(e)
+
+
+# # # Latent space
+# l = layers.Flatten()(e)
+# l = layers.Dense(100, activation='tanh')(l)
+
+# # # Decoder
+# d = layers.Dense(1350, activation='tanh')(l)
+# d = layers.Reshape((10, 5, 27))(d)
+# d = layers.Conv2DTranspose(27, (5, 5), strides=5, activation=act)(d)
+# d = layers.Conv2DTranspose(9, (2, 2), strides=2, activation=act, padding='valid')(d)
+# d = layers.Conv2DTranspose(3, (2, 2), strides=2, activation=act, padding='valid')(d)
+# decoded = layers.Conv2DTranspose(1, (3, 3), activation='linear', padding='same')(d)
+
+
+# Model 3
+# inputs = layers.Input(shape=(200, 100, 1))
+# e = layers.Conv2D(3, (6, 3), activation=act,padding='same')(inputs)
+# e = layers.AveragePooling2D((2, 2), padding='same')(e)
+# e = layers.Conv2D(9, (6, 3), activation=act, padding='same')(e)
+# e = layers.AveragePooling2D((2, 2), padding='same')(e)
+# e = layers.Conv2D(27, (6, 3), activation=act, padding='same')(e)
+# e = layers.AveragePooling2D((5, 5), padding='same')(e)
+
+# # Latent space
+# l = layers.Flatten()(e)
+# l = layers.Dense(100, activation='tanh')(l)
+
+# d = layers.Dense(1350, activation='tanh')(l)
+# d = layers.Reshape((10, 5, 27))(d)
+# d = layers.Conv2D(27, (3, 3), activation=act, padding='same')(d)
+# d = layers.UpSampling2D((5, 5))(d)
+# d = layers.Conv2D(9, (3, 3), activation=act, padding='same')(d)
+# d = layers.UpSampling2D((2, 2))(d)
+# d = layers.Conv2D(3, (3, 3), activation=act, padding='same')(d)
+# d = layers.UpSampling2D((2, 2))(d)
+# decoded = layers.Conv2D(1, (3, 3), activation='linear', padding='same')(d)

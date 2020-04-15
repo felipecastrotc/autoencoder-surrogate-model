@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 # cd simulations
+# rm nn_data.h5
 
 f = h5py.File('data.h5', 'r')
 kys = list(f.keys())
@@ -61,7 +62,7 @@ dt_scl = 'scaled_data'
 T_lmt = np.array([0, 100]) + 273.15    # K
 
 # Define the scaling type
-proc_type = {0: 'std', 1: 'norm', 2: 'std'}
+proc_type = {0: 'std', 1: 'std', 2: 'std'}
 
 # Reformating data, it is interesting to set the dimensions to be even
 # In this case the dimensions were reset to be 200x100. Remove the last
@@ -87,7 +88,7 @@ for i in slc[-1]:
         mean = dt[slc_uns].mean(axis=0)
         std = dt[slc_uns].std(axis=0)
         # Standardize
-        f[dt_scl][slc_i] = (dt[slc_uns][()] - mean)/std
+        f[dt_scl][slc_i] = (dt[slc_uns][()] - mean)/(std + 1e-5)
     elif proc_type[i] == 'norm':
         # Normalize
         f[dt_scl][slc_i] = (dt[slc_uns][()] - T_lmt[0])/(T_lmt[1] - T_lmt[0])
