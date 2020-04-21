@@ -11,13 +11,6 @@ import matplotlib.pyplot as plt
 
 # cd simulations
 
-def swish(x, beta=1):
-    return x * tf.math.sigmoid(beta * x)
-
-
-get_custom_objects().update({"swish": layers.Activation(swish)})
-
-
 def split(sz, n_train=0.8, n_valid=0.1, shuffle=True):
     # Percentage for the test dataset
     n_test = 1 - n_train - n_valid
@@ -65,31 +58,34 @@ vld = dt[slc_vld][:, :, :, np.newaxis]
 tst = dt[slc_tst][:, :, :, np.newaxis]
 
 
-act = 'tanh'
+acte = 'tanh'
+actd = acte
 # Encoder
 tf.keras.backend.clear_session()
 inputs = layers.Input(shape=(200, 100, 1))
-e = layers.Conv2D(2, (5, 5), strides= 2, activation=act, padding='same')(inputs)
-ed = layers.Conv2D(2, (1, 1), padding='same')(e)
-e = layers.Conv2D(4, (5, 5), strides=2, activation=act,padding='same')(e)
-e = layers.Conv2D(8,(5, 5), strides=5, activation=act, padding='same')(e)
+e = layers.DepthwiseConv2D((5, 5), strides= 2, depth_multiplier=3, activation=acte, padding='same')(inputs)
+e = layers.DepthwiseConv2D((5, 5), strides=2, depth_multiplier=3, activation=acte,padding='same')(e)
+e = layers.DepthwiseConv2D((5, 5), strides=5, depth_multiplier=3, activation=acte, padding='same')(e)
 
-# # Latent space
+# Latent space
 l = layers.Flatten()(e)
 l = layers.Dense(100, activation='linear')(l)
 
-l1 = layers.Flatten()(ed)
-l1 = layers.Dense(100, activation='linear')(l1)
-
-# # # Decoder
-d = layers.Dense(400, activation='linear')(l)
-d = layers.Reshape((10, 5, 8))(d)
-d = layers.Conv2DTranspose(8, (5, 5), strides=5, activation=act)(d)
-d = layers.Conv2DTranspose(4, (5, 5), strides=2, activation=act, padding='same')(d)
-d1 = layers.Dense(20000, activation='linear')(l1)
-d1 = layers.Reshape((100, 50, 4))(d1)
-d = layers.Add()([d1, d])
-d = layers.Conv2DTranspose(2, (5, 5), strides=2, activation=act, padding='same')(d)
+# Decoder
+d = layers.Dense(1350, activation='linear')(l)
+d = layers.Reshape((10, 5, 27))(d)
+d0 = layers.Conv2DTranspose(9, (5, 5), strides=5, activation=actd)(d)
+d1 = layers.Conv2DTranspose(9, (5, 5), strides=5, activation=actd)(d)
+d2 = layers.Conv2DTranspose(9, (5, 5), strides=5, activation=actd)(d)
+d = layers.Concatenate()([d0,d1,d2])
+d0 = layers.Conv2DTranspose(3, (5, 5), strides=2, activation=actd, padding='same')(d)
+d1 = layers.Conv2DTranspose(3, (5, 5), strides=2, activation=actd, padding='same')(d)
+d2 = layers.Conv2DTranspose(3, (5, 5), strides=2, activation=actd, padding='same')(d)
+d = layers.Concatenate()([d0,d1,d2])
+d0 = layers.Conv2DTranspose(1, (5, 5), strides=2, activation=actd, padding='same')(d)
+d1 = layers.Conv2DTranspose(1, (5, 5), strides=2, activation=actd, padding='same')(d)
+d2 = layers.Conv2DTranspose(1, (5, 5), strides=2, activation=actd, padding='same')(d)
+d = layers.Concatenate()([d0,d1,d2])
 decoded = layers.Conv2DTranspose(1, (5, 5), activation='linear', padding='same')(d)
 
 ae = Model(inputs, decoded)
@@ -97,7 +93,7 @@ ae.summary()
 
 ae.compile(optimizer="adam", loss="mse")
 ae.fit(trn, trn,
-        epochs=60,
+        epochs=15,
         batch_size=64,
         shuffle=True,
         validation_data=(vld, vld))
@@ -106,13 +102,13 @@ ae.fit(trn, trn,
 
 dt_in = dt[129, :, :, 2]
 dt_out = ae.predict(dt_in[np.newaxis, :, :, np.newaxis])
-np.mean((dt_in - dt_out[0, :, :, 0])**2)
+print(np.mean((dt_in - dt_out[0, :, :, 0])**2))
 
 fig, ax = plt.subplots(2, figsize=(10,10))
 ax[0].pcolormesh(dt_in[ :, :].T, rasterized=True)
 ax[1].pcolormesh(dt_out[0, :, :, 0].T, rasterized=True)
 
-tst = dt_out[0, :, :, 0]/dt_in 
-tst = tst.flatten()
-tst = tst[~np.isinf(tst)]
-tst.mean()
+# tst = dt_out[0, :, :, 0]/dt_in 
+# tst = tst.flatten()
+# tst = tst[~np.isinf(tst)]
+# tst.mean()

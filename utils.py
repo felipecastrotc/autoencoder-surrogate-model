@@ -5,6 +5,12 @@ import numpy as np
 import pyvista as pv
 
 
+# Matrices multiplication
+# y = np.transpose(X, axes=(0, 2, 1))
+# np.einsum('ijk,ikm->ijm',x,y)
+# X @ np.transpose(X, axes=(0, 2, 1))
+
+
 def read_vtk(save_file, case, path, filename, h=None, close=True):
     if not h:
         h = h5py.File(save_file, 'w')
