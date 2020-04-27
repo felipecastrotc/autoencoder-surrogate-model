@@ -1,7 +1,7 @@
 # read_vtk
 import h5py
 import numpy as np
-import pyvista as p
+# import pyvista as p
 import xmltodict
 import matplotlib.pyplot as plt
 
@@ -115,7 +115,7 @@ def split(sz, n_train=0.8, n_valid=0.1, shuffle=True):
     return idx_trn, idx_vld, idx_tst
 
 
-def slicer(shp, idxs):
+def slicer(shp, idxs, var=None):
     # Obtain a list of slicers to slice the data array according to the
     # selected data
 
@@ -124,26 +124,51 @@ def slicer(shp, idxs):
     # Iterate over the datasets
     for idx in idxs:
         idx.sort()
-        slc += [tuple([idx] + [slice(None)] * (len(shp) - 2) + [2])]
+        if not var:
+            slc += [tuple([idx] + [slice(None)] * (len(shp) - 1))]
+        else:
+            slc += [tuple([idx] + [slice(None)] * (len(shp) - 2) + [var])]
     return tuple(slc)
 
 
-def format_data(dt, wd=20):
-    # LSTM training window time
+def format_data(dt, wd=20, var=None, get_y=False):
     # Get the simulation indexes
     idxs = dt.attrs["idx"]
     n_t_stp = np.min(np.diff(idxs))
     exp_fct = n_t_stp // wd
-    x_data = np.empty((len(idxs) * exp_fct, wd - 1, *dt.shape[1:-1], 1))
-    y_data = np.empty((len(idxs) * exp_fct, *dt.shape[1:-1], 1))
+    # Shape of the initialised array
+    if not var:
+        # Full array
+        init_x = (len(idxs) * exp_fct, wd - 1, *dt.shape[1:])
+        init_y = (len(idxs) * exp_fct, *dt.shape[1:])
+    else:
+        # Only selected variable
+        init_x = (len(idxs) * exp_fct, wd - 1, *dt.shape[1:-1], 1)
+        init_y = (len(idxs) * exp_fct, *dt.shape[1:-1], 1)
+    # Initialise array
+    x_data = np.empty(init_x)
+    if get_y:
+        y_data = np.empty(init_y)
+    # Create a slice from var
+    if not var:
+        var = slice(None)
     # Fill the matrix (sample, time, x, y, z)
     for i, idx in enumerate(idxs):
-        for j in range(exp_fct - 1):
+        for j in range(exp_fct):
             slc = slice(idx[0] + wd * j, idx[0] + wd * (j + 1) - 1)
-            x_data[exp_fct * i + j, :, :, :, 0] = dt[slc, :, :, 2]
-            y_data[exp_fct * i + j, :, :, 0] = dt[idx[0] + wd * (j + 1), :, :, 2]
-    return x_data, y_data
+            x_data[exp_fct * i + j, :, :, :, var] = dt[slc, :, :, var]
+            if get_y:
+                slc = idx[0] + wd * (j + 1)
+                y_data[exp_fct * i + j, :, :, var] = dt[slc, :, :, var]
+    if get_y:
+        return x_data, y_data
+    else:
+        return x_data
 
+def flat_2d(data, div=0):
+    dim_1 = np.prod(data.shape[0:div+1], dtype=int)
+    dim_2 = np.prod(data.shape[div+1:], dtype=int)
+    return data.reshape((dim_1, dim_2))
 
 # Sensitivity analysis
 
@@ -181,15 +206,20 @@ def proper_type(samples, params):
 
 # Plot
 
-def plot_red_comp(original, reduced, n_dim, mse_global, alg='PCA'):
+def plot_red_comp(original, reduced, var, n_dim, mse_global, alg='PCA'):
     # Calculate the MSE
+    if var:
+        original = original[:, :, var]
+        reduced = reduced[:, :, var]
     mse = np.mean((original - reduced) ** 2)
+    vmax = original.max()
+    vmin = original.min()
     # Generate the subplot figure
     fig, ax = plt.subplots(2, figsize=(8, 8))
     tit = "Global MSE: {:.4f}  Case MSE: {:.4f}".format(mse_global, mse)
     fig.suptitle(tit, y=1.02)
     fig.tight_layout(pad=2)
     ax[0].pcolormesh(original.T, rasterized=True)
-    ax[1].pcolormesh(reduced.T, rasterized=True)
+    ax[1].pcolormesh(reduced.T, vmax=vmax, vmin=vmin, rasterized=True)
     ax[0].set_title("Original data")
     ax[1].set_title("{} with {} dimensions".format(alg, n_dim))

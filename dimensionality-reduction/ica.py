@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.decomposition import PCA, FastICA
 
-from utils import slicer, split
+from utils import slicer, split, plot_red_comp
 
 
 def fast_ICA_fit(n_components, train, test, shape):

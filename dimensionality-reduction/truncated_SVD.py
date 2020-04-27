@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.decomposition import PCA, TruncatedSVD
 
-from utils import slicer, split
+from utils import slicer, split, plot_red_comp
 
 
 def TSVD_fit(n_components, train, test, shape):
