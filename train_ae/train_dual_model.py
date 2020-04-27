@@ -1,47 +1,13 @@
 import h5py
-
 import keras.layers as layers
+import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
-
-from keras import backend
 from keras.models import Model, load_model
-from keras.utils.generic_utils import get_custom_objects
-import matplotlib.pyplot as plt
+
+from utils import slicer, split
 
 # cd simulations
-
-def split(dt, n_train=0.8, n_valid=0.1, shuffle=True):
-    # Percentage for the test dataset
-    n_test = 1 - n_train - n_valid
-    # Generate an index array
-    idx_lst = dt.attrs['idx'][:, 1]
-    idx_lst[-1] -= 1
-    idx = np.array(range(dt.shape[0]))
-    idx = np.setdiff1d(idx, idx_lst, assume_unique=True)
-    sz = idx.shape[0]
-    # Get the datasets indexes
-    idx_tst = np.random.choice(idx, int(n_test * sz), replace=False)
-    idx = np.setdiff1d(idx, idx_tst, assume_unique=True)
-
-    idx_vld = np.random.choice(idx, int(n_valid * sz), replace=False)
-    idx_trn = np.setdiff1d(idx, idx_vld, assume_unique=True)
-
-    # # Shuffle the train dataset
-    if shuffle:
-        np.random.shuffle(idx_trn)
-
-    return idx_trn, idx_vld, idx_tst
-
-
-def slicer(shp, idxs, add=0):
-    # It is assumed that the first dimension is the samples
-    slc = []
-    # Iterate over the datasets
-    for idx in idxs:
-        idx.sort()
-        slc += [tuple([idx +add] + [slice(None)] * (len(shp) - 2) + [2])]
-    return tuple(slc)
 
 dt_fl = "nn_data.h5"
 dt_dst = "scaled_data"

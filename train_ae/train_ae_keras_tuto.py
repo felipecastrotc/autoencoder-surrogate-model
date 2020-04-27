@@ -10,33 +10,6 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
-def split(sz, n_train=0.8, n_valid=0.1, shuffle=True):
-    # Percentage for the test dataset
-    n_test = 1 - n_train - n_valid
-    # Generate an index array
-    idx = np.array(range(sz))
-    # Get the datasets indexes
-    idx_tst = np.random.choice(idx, int(n_test*sz), replace=False)
-    idx = np.setdiff1d(idx, idx_tst, assume_unique=True)
-    
-    idx_vld = np.random.choice(idx, int(n_valid*sz), replace=False)
-    idx_trn = np.setdiff1d(idx, idx_vld, assume_unique=True)
-    
-    # # Shuffle the train dataset
-    if shuffle:
-        np.random.shuffle(idx_trn)
-        
-    return idx_trn, idx_vld, idx_tst
-
-def slicer(shp, idxs):
-    # It is assumed that the first dimension is the samples
-    slc = []
-    # Iterate over the datasets
-    for idx in idxs:
-        idx.sort()
-        slc += [tuple([idx] + [slice(None)]*(len(shp) - 1))]
-    return tuple(slc)
-
 
 dt_fl = 'nn_data.h5'
 dt_dst = 'scaled_data'
