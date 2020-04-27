@@ -3,6 +3,7 @@ import h5py
 import numpy as np
 import pyvista as p
 import xmltodict
+import matplotlib.pyplot as plt
 
 # Read vtk files and store them in a hdf5 file
 
@@ -173,7 +174,22 @@ def proper_type(samples, params):
     # dtype = {key: cvt[params[key]["type"]] for key in params.keys()}
     dtype = [(key, cvt[params[key]["type"]]) for key in params.keys()]
     # Create a dataframe with the cases to train
-    smp_st = np.array(list(zip(*smp_sbl.T)), dtype=dtype)
+    smp_st = np.array(list(zip(*samples.T)), dtype=dtype)
     # smp_df = pd.DataFrame(smp_sbl, columns=params.keys())
     # smp_df = smp_df.astype(dtype)
     return smp_st
+
+# Plot
+
+def plot_red_comp(original, reduced, n_dim, mse_global, alg='PCA'):
+    # Calculate the MSE
+    mse = np.mean((original - reduced) ** 2)
+    # Generate the subplot figure
+    fig, ax = plt.subplots(2, figsize=(8, 8))
+    tit = "Global MSE: {:.4f}  Case MSE: {:.4f}".format(mse_global, mse)
+    fig.suptitle(tit, y=1.02)
+    fig.tight_layout(pad=2)
+    ax[0].pcolormesh(original.T, rasterized=True)
+    ax[1].pcolormesh(reduced.T, rasterized=True)
+    ax[0].set_title("Original data")
+    ax[1].set_title("{} with {} dimensions".format(alg, n_dim))
