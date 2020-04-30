@@ -11,13 +11,15 @@ from keras.models import Model
 from SALib.sample import latin, saltelli
 
 from utils import gen_problem, proper_type, split, slicer
+from utils_keras import loss_norm_error
 
 # https://waterprogramming.wordpress.com/2014/02/11/extensions-of-salib-for-more-complex-sensitivity-analyses/
 
 
 def ae_add_model(x_train, y_train, x_val, y_val, params):
 
-    act_fn = {0: "relu", 1: "tanh", 2: "sigmoid", 3: "elu", 4: "linear"}
+    # act_fn = {0: "relu", 1: "tanh", 2: "sigmoid", 3: "elu", 4: "linear"}
+    act_fn = {0: "relu",  1: "sigmoid", 2: "tanh", 3: "elu", 4: "linear"}
     optm = {0: "adam", 1: "nadam", 2: "adamax"}
 
     # Get the number of layers
@@ -172,7 +174,7 @@ def ae_add_model(x_train, y_train, x_val, y_val, params):
     else:
         k_opt = k_optf()
 
-    ae.compile(optimizer=k_opt, loss="mse", metrics=["mse"])
+    ae.compile(optimizer=k_opt, loss=loss_norm_error, metrics=["mse"])
     # return ae
 
     hist = ae.fit(
@@ -191,15 +193,18 @@ params = dict(
     n1_filters={"bounds": [2, 64], "type": "int"},
     n2_filters={"bounds": [2, 64], "type": "int"},
     n3_filters={"bounds": [16, 64], "type": "int"},
-    act_layers={"bounds": [0, 3], "type": "int"},
-    latent_layer_div={"bounds": [0.5, 0.7], "type": "float"},
-    latent_layer_size={"bounds": [120, 200], "type": "int"},
-    epochs={"bounds": [15, 80], "type": "int"},
-    batch={"bounds": [0, 32], "type": "int"},
+    act_layers={"bounds": [2, 3], "type": "int"},
+    latent_layer_div={"bounds": [0.3, 0.7], "type": "float"},
+    latent_layer_size={"bounds": [6, 140], "type": "int"},
+    epochs={"bounds": [15, 100], "type": "int"},
+    batch={"bounds": [1, 16], "type": "int"},
 )
 
+3*3*3*2*3*3*3*3
+
+
 # The Saltelli sampler generates N∗(2*D+2)
-n_smp = 108  # multiple of 28
+n_smp = 108  # multiple of 18
 
 # Generate the SALib dictionary
 problem = gen_problem(params)
@@ -235,8 +240,11 @@ dt = f[dt_dst]
 idxs = split(dt.shape[0], n_train, n_valid)
 slc_trn, slc_vld, slc_tst = slicer(dt.shape, idxs)
 
-trn = dt[slc_trn][:, :, :, np.newaxis]
-vld = dt[slc_vld][:, :, :, np.newaxis]
+# trn = dt[slc_trn][:, :, :, np.newaxis]
+# vld = dt[slc_vld][:, :, :, np.newaxis]
+
+trn = dt[slc_trn]
+vld = dt[slc_vld]
 
 # Initialize dataframe to store the data
 df = pd.DataFrame(smp_st)
@@ -264,5 +272,5 @@ for i, smp in enumerate(smp_st):
     if df.loc[i, "mse"] < min_trn:
         ae.save("ae_add_min_trn_mse.h5")
         min_trn = df.loc[i, "mse"]
-    df.to_hdf("ae_add_salib_hist_2.h5", "log_sa", "a")
+    df.to_hdf("ae_add_salib_hist_3.h5", "log_sa", "a")
     print("{:.2%}%".format(i/smp_st.shape[0]))

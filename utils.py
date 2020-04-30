@@ -2,7 +2,7 @@
 import h5py
 import numpy as np
 # import pyvista as p
-import xmltodict
+# import xmltodict
 import matplotlib.pyplot as plt
 
 # Read vtk files and store them in a hdf5 file
@@ -208,9 +208,8 @@ def proper_type(samples, params):
 
 def plot_red_comp(original, reduced, var, n_dim, mse_global, alg='PCA'):
     # Calculate the MSE
-    if var:
-        original = original[:, :, var]
-        reduced = reduced[:, :, var]
+    original = original[:, :, var]
+    reduced = reduced[:, :, var]
     mse = np.mean((original - reduced) ** 2)
     vmax = original.max()
     vmin = original.min()

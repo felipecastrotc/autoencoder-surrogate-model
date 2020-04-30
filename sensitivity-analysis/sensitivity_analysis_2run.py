@@ -13,19 +13,20 @@ from SALib.sample import latin, saltelli
 # https://waterprogramming.wordpress.com/2014/02/11/extensions-of-salib-for-more-complex-sensitivity-analyses/
 
 
+
 params = dict(
     n1_filters={"bounds": [2, 64], "type": "int"},
     n2_filters={"bounds": [2, 64], "type": "int"},
     n3_filters={"bounds": [16, 64], "type": "int"},
-    act_layers={"bounds": [0, 3], "type": "int"},
-    latent_layer_div={"bounds": [0.5, 0.7], "type": "float"},
-    latent_layer_size={"bounds": [120, 200], "type": "int"},
-    epochs={"bounds": [15, 80], "type": "int"},
-    batch={"bounds": [0, 32], "type": "int"},
+    act_layers={"bounds": [2, 3], "type": "int"},
+    latent_layer_div={"bounds": [0.3, 0.7], "type": "float"},
+    latent_layer_size={"bounds": [6, 140], "type": "int"},
+    epochs={"bounds": [15, 100], "type": "int"},
+    batch={"bounds": [1, 16], "type": "int"},
 )
 
 # The Saltelli sampler generates N∗(2*D+2)
-n_smp = 112  # multiple of 28
+n_smp = 108  # multiple of 28
 # n_smp = 28  # multiple of 28
 
 # Generate the SALib dictionary
@@ -35,13 +36,19 @@ problem = gen_problem(params)
 n_stl = int(n_smp / (2 * problem["num_vars"] + 2))
 # Generate the samples
 smp_sbl = saltelli.sample(problem, n_stl, True)
+smp_st = proper_type(smp_sbl, params)
+smp_st
+
 
 # ls
-# shutil.copyfile('ae_add_salib_hist_2.h5', 'ae_add_salib_hist_2_70.h5')
+shutil.copyfile('ae_add_salib_hist_3.h5', 'ae_add_salib_hist_3_tst2.h5')
 # Analysis first run
-df = pd.read_hdf('ae_add_salib_hist_2.h5')
+# df = pd.read_hdf('ae_add_salib_hist_3_tst.h5')
+df = pd.read_hdf('ae_add_salib_hist_3_tst2.h5')
 df = df[~df['mse'].isin([np.nan, np.inf, -np.inf])]
-# df.shape
+df.shape
+df['hist'].iloc[0]['val_loss']
+
 # df['mse'][~np.isinf(df['mse'])]
 df['1/mse'] = 1/df['mse']
 df.iloc[df['val_mse'].idxmin()]

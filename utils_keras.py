@@ -2,7 +2,7 @@ import keras.layers as layers
 import tensorflow as tf
 from keras import backend as K
 from keras.utils.generic_utils import get_custom_objects
-
+import numpy as np
 
 clear_tf = tf.keras.backend.clear_session
 
@@ -29,6 +29,14 @@ def set_swish():
     get_custom_objects().update({"swish": layers.Activation(swish)})
     pass
 
+
+# Norm error loss
+def loss_norm_error(y_true, y_predicted):
+    return K.sqrt(K.sum(K.square(K.abs(y_true - y_predicted)))/K.sum(K.square(K.abs(y_true))))
+
+
+def loss_norm_error_np(y_true, y_predicted):
+    return np.sqrt(np.sum(np.square(np.abs(y_true - y_predicted)))/np.sum(np.square(np.abs(y_true))))
 
 
 def mbconv(inputs, expansion, stride, filters, alpha=1, block_id=0):

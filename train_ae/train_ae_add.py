@@ -6,10 +6,8 @@ import tensorflow as tf
 from keras import backend as K
 from keras.models import Model
 
-# from utils import slicer, split
-K.sqrt
-def loss(y_true, y_predicted):
-    return K.sqrt(K.sum(K.square(K.abs(y_true - y_predicted)))/K.sum(K.square(K.abs(y_true))))
+from utils import slicer, split, plot_red_comp
+from utils_keras import loss_norm_error
 
 # cd simulations
 
@@ -39,8 +37,10 @@ act = "elu"
 # Encoder
 tf.keras.backend.clear_session()
 # n = [3, 9, 27]
-n = [17, 32, 56]
-lt = [65, 65]
+# n = [17, 32, 56]
+n = [17, 32, 55]
+# lt = [65, 65]
+lt = [54, 76]
 # lt = [3, 3]
 inputs = layers.Input(shape=trn.shape[1:])
 e = layers.Conv2D(n[0], (5, 5), strides=2, activation=act, padding="same")(inputs)
@@ -74,7 +74,7 @@ ae = Model(inputs, decoded)
 ae.summary()
 
 # ae.compile(optimizer="adam", loss="mse", metrics=["mse"])
-ae.compile(optimizer="adam", loss=loss, metrics=["mse"])
+ae.compile(optimizer="adam", loss=loss_norm_error, metrics=["mse"])
 hist = ae.fit(trn, trn, epochs=15, batch_size=4, shuffle=True, validation_data=(vld, vld))
 
 # ae.evaluate(tst, tst)
@@ -89,4 +89,4 @@ plot_red_comp(org, rec, var, np.sum(lt), 0, 'AE')
 
 # org = org[:, :, 1]
 # rec = np.squeeze(ae.predict(org[np.newaxis, :, :, np.newaxis]))
-plot_red_comp(org, rec, var, np.sum(lt), 0, 'AE')
+# plot_red_comp(org, rec, var, np.sum(lt), 0, 'AE')
