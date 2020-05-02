@@ -17,11 +17,11 @@ from utils import plot_red_comp, slicer, split
 # upsampling layers. Instead, it was used strides to control the contraction
 # and expansion of the neural network. Also, in the decoder part it was used a
 # decovolutional process.
-
+#
 # For the latent space it was used a fully connected layer with an additional
 # fully connected layer in sequence, to connect the latent space with the
 # decoder convolutional layer.
-
+#
 # The neural network architecture with the activation function is stated below.
 
 # %%
@@ -44,10 +44,10 @@ dt = f[dt_dst]
 
 # Split data file
 idxs = split(dt.shape[0], n_train, n_valid)
-_trn, _vld, _tst = slicer(dt.shape, idxs, var=var)
+slc_trn, slc_vld, slc_tst = slicer(dt.shape, idxs, var=var)
 # Slice data
-x_train = dt[_trn][:, :, :, np.newaxis]
-x_val = dt[_vld][:, :, :, np.newaxis]
+x_train = dt[slc_trn][:, :, :, np.newaxis]
+x_val = dt[slc_vld][:, :, :, np.newaxis]
 
 # Convert the var into a slice
 if var:
@@ -91,10 +91,11 @@ l = layers.Flatten()(e)
 l = layers.Dense(lt_sz, activation=act_lt)(l)
 
 # Latent to decoder
+dn_flt = flt[-1]
 d_shp = (x_train.shape[1:-1] / np.prod(strd)).astype(int)
-d_sz = np.prod(d_shp) * flt[-1]
+d_sz = np.prod(d_shp) * dn_flt
 d = layers.Dense(d_sz, activation=act_lt)(l)
-d = layers.Reshape(np.hstack((d_shp, flt[-1])))(d)
+d = layers.Reshape(np.hstack((d_shp, dn_flt)))(d)
 # Decoder
 d = layers.Conv2DTranspose(flt[-1], flt_tp, strides=strd[-1], **conv_kwargs)(d)
 d = layers.Conv2DTranspose(flt[-2], flt_tp, strides=strd[-2], **conv_kwargs)(d)
@@ -150,7 +151,7 @@ hist.plot(grid=True, title=tit)
 
 # %%
 # Test the trained neural network against the test dataset
-x_test = dt[_tst][:, :, :, np.newaxis]
+x_test = dt[slc_tst][:, :, :, np.newaxis]
 loss = ae.evaluate(x_test, x_test)
 print("Test dataset loss: {:.3f}".format(loss))
 
@@ -166,7 +167,7 @@ dt_in = dt[data_index, :, :, slc]
 # Get the neural network output
 dt_out = ae.predict(dt_in[np.newaxis])
 # Plot
-alg = "Convolutional Autoeoncder"
+alg = "Convolutional Autoencoder"
 plot_red_comp(dt_in, dt_out[0], 0, lt_sz, global_loss, alg)
 
 # %%

@@ -1,85 +1,189 @@
+# %%
 import h5py
 import keras.layers as layers
-import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import tensorflow as tf
+from keras.callbacks import EarlyStopping
 from keras.models import Model
 
-from utils import slicer, split
+from utils import plot_red_comp, slicer, split
 
-# cd simulations
+# %% [markdown]
+# # Convolutional Autoeconder
+# This code trains a simple autoencoder neural network using convolutional
+#  layers.The contraction and expansion of the implemented neural network used
+# only convolutional layers. Therefore, it does not rely on maxpooling or
+# upsampling layers. Instead, it was used strides to control the contraction
+# and expansion of the neural network. Also, in the decoder part it was used a
+# decovolutional process.
+#
+# For the latent space it was used a fully connected layer with an additional
+# fully connected layer in sequence, to connect the latent space with the
+# decoder convolutional layer.
+#
+# The neural network architecture with the activation function is stated below.
 
+# %%
+# Selecting data
 dt_fl = "nn_data.h5"
 dt_dst = "scaled_data"
 
+# The percentage for the test is implicit
 n_train = 0.8
 n_valid = 0.1
 
+# Select the variable to train
+# 0: Temperature - 1: Pressure - 2: Velocity - None: all
+var = None
+
+# %%
 # Open data file
 f = h5py.File(dt_fl, "r")
 dt = f[dt_dst]
 
-
+# Split data file
 idxs = split(dt.shape[0], n_train, n_valid)
-slc_trn, slc_vld, slc_tst = slicer(dt.shape, idxs)
-trn = dt[slc_trn][:, :, :, np.newaxis]
-vld = dt[slc_vld][:, :, :, np.newaxis]
-tst = dt[slc_tst][:, :, :, np.newaxis]
+slc_trn, slc_vld, slc_tst = slicer(dt.shape, idxs, var=var)
+# Slice data
+if var:
+    x_train = dt[slc_trn][:, :, :, np.newaxis]
+    x_val = dt[slc_vld][:, :, :, np.newaxis]
+else:
+    x_train = dt[slc_trn]
+    x_val = dt[slc_vld]
 
+# Convert the var into a slice
+if var:
+    slc = slice(var, var + 1)
+else:
+    slc = slice(var)
+# %%
+# Autoencoder settings
 
-acte = "tanh"
-actd = acte
-# Encoder
+# Activation function
+act = "tanh"  # Convolutional layers activation function
+act_lt = "tanh"  # Latent space layers activation function
+# Depth multiplier of each layer
+mult = [3, 3, 3]
+# Number of filters of the decoding layers
+flt = [3, 9, 27]
+# Filter size
+flt_size = 5
+# Strides of each layer
+strd = [2, 2, 5]
+# Latent space size
+lt_sz = 90
+
+# Training settings
+opt = "adam"  # Optimizer
+loss = "mse"
+epochs = 60
+batch_size = 64
+
+# %%
+# Build the autoencoder neural network
 tf.keras.backend.clear_session()
-inputs = layers.Input(shape=(200, 100, 1))
+flt_tp = (flt_size, flt_size)
+conv_kwargs = dict(activation=act, padding="same")
+# Encoder
+inputs = layers.Input(shape=x_train.shape[1:])
 e = layers.DepthwiseConv2D(
-    (5, 5), strides=2, depth_multiplier=3, activation=acte, padding="same"
+    flt_tp, depth_multiplier=mult[0], strides=strd[0], **conv_kwargs
 )(inputs)
 e = layers.DepthwiseConv2D(
-    (5, 5), strides=2, depth_multiplier=3, activation=acte, padding="same"
+    flt_tp, depth_multiplier=mult[1], strides=strd[1], **conv_kwargs
 )(e)
 e = layers.DepthwiseConv2D(
-    (5, 5), strides=5, depth_multiplier=3, activation=acte, padding="same"
+    flt_tp, depth_multiplier=mult[2], strides=strd[2], **conv_kwargs
 )(e)
 
 # Latent space
 l = layers.Flatten()(e)
-l = layers.Dense(100, activation="linear")(l)
+l = layers.Dense(lt_sz, activation=act_lt)(l)
 
+# Latent to decoder
+dn_flt = flt[-1]
+d_shp = (x_train.shape[1:-1] / np.prod(strd)).astype(int)
+d_sz = np.prod(d_shp) * dn_flt
+d = layers.Dense(d_sz, activation=act_lt)(l)
+d = layers.Reshape(np.hstack((d_shp, dn_flt)))(d)
 # Decoder
-d = layers.Dense(1350, activation="linear")(l)
-d = layers.Reshape((10, 5, 27))(d)
-d0 = layers.Conv2DTranspose(9, (5, 5), strides=5, activation=actd)(d)
-d1 = layers.Conv2DTranspose(9, (5, 5), strides=5, activation=actd)(d)
-d2 = layers.Conv2DTranspose(9, (5, 5), strides=5, activation=actd)(d)
-d = layers.Concatenate()([d0, d1, d2])
-d0 = layers.Conv2DTranspose(3, (5, 5), strides=2, activation=actd, padding="same")(d)
-d1 = layers.Conv2DTranspose(3, (5, 5), strides=2, activation=actd, padding="same")(d)
-d2 = layers.Conv2DTranspose(3, (5, 5), strides=2, activation=actd, padding="same")(d)
-d = layers.Concatenate()([d0, d1, d2])
-d0 = layers.Conv2DTranspose(1, (5, 5), strides=2, activation=actd, padding="same")(d)
-d1 = layers.Conv2DTranspose(1, (5, 5), strides=2, activation=actd, padding="same")(d)
-d2 = layers.Conv2DTranspose(1, (5, 5), strides=2, activation=actd, padding="same")(d)
-d = layers.Concatenate()([d0, d1, d2])
-decoded = layers.Conv2DTranspose(1, (5, 5), activation="linear", padding="same")(d)
+d = layers.Conv2DTranspose(flt[-1], flt_tp, strides=strd[-1], **conv_kwargs)(d)
+d = layers.Conv2DTranspose(flt[-2], flt_tp, strides=strd[-2], **conv_kwargs)(d)
+d = layers.Conv2DTranspose(flt[-3], flt_tp, strides=strd[-3], **conv_kwargs)(d)
+decoded = layers.Conv2DTranspose(
+    x_train.shape[-1], flt_tp, activation="linear", padding="same"
+)(d)
 
-ae = Model(inputs, decoded)
+# Mount the autoencoder
+ae = Model(inputs, decoded, name="Convolutional Autoencoder")
+
+# %%
+# Show the architecture
 ae.summary()
 
-ae.compile(optimizer="adam", loss="mse")
-ae.fit(trn, trn, epochs=15, batch_size=64, shuffle=True, validation_data=(vld, vld))
+# %% [markdown]
+# ## Callbacks
+# Early stopping to stop training when the validation loss start to increase
+# The patience term is a number of epochs to wait before stop. Also, the
+# 'restore_best_weights' is used to restore the best model against the
+# validation dataset. It is necessary as not always the best model against
+# the validation dataset is the last neural network weights.
 
-# ae.evaluate(tst, tst)
+# %%
+# Callbacks
+monitor = "val_loss"
+patience = int(epochs * 0.3)
+es = EarlyStopping(
+    monitor=monitor, mode="min", patience=patience, restore_best_weights=True
+)
 
-dt_in = dt[129, :, :, 2]
-dt_out = ae.predict(dt_in[np.newaxis, :, :, np.newaxis])
-print(np.mean((dt_in - dt_out[0, :, :, 0]) ** 2))
+# %%
+# Compile and train
+ae.compile(optimizer=opt, loss=loss)
+hist = ae.fit(
+    x_train,
+    x_train,
+    epochs=epochs,
+    batch_size=batch_size,
+    shuffle=True,
+    validation_data=(x_val, x_val),
+    callbacks=[es],
+)
 
-fig, ax = plt.subplots(2, figsize=(10, 10))
-ax[0].pcolormesh(dt_in[:, :].T, rasterized=True)
-ax[1].pcolormesh(dt_out[0, :, :, 0].T, rasterized=True)
+# %%
+# Convert the history to a Pandas dataframe
+hist = pd.DataFrame(hist.history)
+hist.index.name = "Epochs"
 
-# tst = dt_out[0, :, :, 0]/dt_in
-# tst = tst.flatten()
-# tst = tst[~np.isinf(tst)]
-# tst.mean()
+# Plot training evolution
+tit = "Validation loss: {:.3f} - Training loss: {:.3f}".format(*hist.min())
+hist.plot(grid=True, title=tit)
+
+# %%
+# Test the trained neural network against the test dataset
+if var:
+    x_test = dt[slc_tst][:, :, :, np.newaxis]
+else:
+    x_test = dt[slc_tst]
+loss = ae.evaluate(x_test, x_test)
+print("Test dataset loss: {:.3f}".format(loss))
+
+global_loss = ae.evaluate(dt[:, :, :, slc], dt[:, :, :, slc])
+print("Entire dataset loss: {:.3f}".format(global_loss))
+
+# %%
+# Comparing the input and output of the autoencoder neural network
+data_index = 634
+var_plt = 0
+
+# Slice the data
+dt_in = dt[data_index, :, :, slc]
+# Get the neural network output
+dt_out = ae.predict(dt_in[np.newaxis])
+# Plot
+alg = "Depthwise conv. autoencoder"
+plot_red_comp(dt_in, dt_out[0], var_plt, lt_sz, global_loss, alg)
+
+# %%
