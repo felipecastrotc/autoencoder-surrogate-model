@@ -1,4 +1,3 @@
-# read_vtk
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,9 +5,24 @@ import pyvista as pv
 import xmltodict
 
 # Read vtk files and store them in a hdf5 file
-
-
 def read_vtk(save_file, case, path, filename, h=None, close=True):
+    """Read the .vtk file and store it in a HDF5 file
+
+    Parameters
+    ----------
+    save_file : str
+        HDF5 file name to store the data from the .vtk file
+    case : str
+        Dataset key to store the data inside the HDF5
+    path : str
+        Path to the .vtk file folder
+    filename : str
+        Name of the  vtk file
+    h : h5py, optional
+        File handler of the h5py library, by default None
+    close : bool, optional
+        Close the HDF5 file at the end of the function run, by default True
+    """
     if not h:
         h = h5py.File(save_file, "w")
 
@@ -95,9 +109,29 @@ def read_vtk(save_file, case, path, filename, h=None, close=True):
 
 
 # Data manipulation functions
-
-
 def split(sz, n_train=0.8, n_valid=0.1, shuffle=True):
+    """Split the data in three different sets.
+    
+    Parameters
+    ----------
+    sz : int
+        Number of samples to be splitted
+    n_train : float, optional
+        Percentage for the training dataset, by default 0.8
+    n_valid : float, optional
+        Percentage for the validation dataset, by default 0.1
+    shuffle : bool, optional
+        Shuffle the data, by default True
+
+    Returns
+    -------
+    numpy.ndarray
+        Index of the training dataset
+    numpy.ndarray
+        Index of the validation dataset
+    numpy.ndarray
+        Index of the training test dataset
+    """
     # Split the data
     # Percentage for the test dataset
     n_test = 1 - n_train - n_valid
@@ -118,8 +152,23 @@ def split(sz, n_train=0.8, n_valid=0.1, shuffle=True):
 
 
 def slicer(shp, idxs, var=None):
-    # Obtain a list of slicers to slice the data array according to the
-    # selected data
+    """Obtain a list of slicers to slice the data array according to the
+    selected data
+
+    Parameters
+    ----------
+    shp : tuple
+        Data shape
+    idxs : iterable
+        Indexes of the selected data
+    var : int, optional
+        Data to be selected, in case of multidimensional sample, by default None
+
+    Returns
+    -------
+    slice
+        Slices of the data
+    """
 
     # It is assumed that the first dimension is the samples
     slc = []
@@ -133,9 +182,40 @@ def slicer(shp, idxs, var=None):
     return tuple(slc)
 
 
-def format_data(dt, wd=20, var=None, get_y=False):
+def format_data(dt, wd=20, var=None, get_y=False, idxs=None):
+    """Format data to be compatible with LSTM layers from keras.
+
+    It is specific for the HDF5 datasets being used when 'idxs' is not passed.
+    The function add a new dimension between the 'sample' dimension and the 
+    samples dimension, for instance, the data has the shape of (100, 10, 10), 
+    after formatting it will have (100, 1, 10, 10).
+    
+    The function does not repeat values to be predicted by other cases.
+
+    Parameters
+    ----------
+    dt : numpy.ndarray or h5py dataset
+        Data to be formatted
+    wd : int, optional
+        Window to be used to predict the next sample, by default 20
+    var : int, optional
+        'Channel' to be kept while formating the data, by default None
+    get_y : bool, optional
+        Return the sample to be predicted, by default False
+    idxs : np.ndarray, optional
+        It is a 2D numpy array or nested list with the sample limits
+        , by default None
+
+    Returns
+    -------
+    numpy.ndarray
+        X data
+    numpy.ndarray
+        Y data
+    """
     # Get the simulation indexes
-    idxs = dt.attrs["idx"]
+    if not idxs:
+        idxs = dt.attrs["idx"]
     n_t_stp = np.min(np.diff(idxs))
     exp_fct = n_t_stp // wd
     # Shape of the initialised array
@@ -180,9 +260,22 @@ def flat_2d(data, div=0):
 
 
 # Sensitivity analysis
-
-
 def gen_problem(params):
+    """Convert parameters to be input to SALib.
+
+    This function converts the params dictionary into a dictionary formatted to 
+    be input at the SALib as mean to generate the samples.
+
+    Parameters
+    ----------
+    params : dict
+        Example: {"variable": {"bounds": [0, 1], "type": "int"}}
+        
+    Returns
+    -------
+    dict
+        Formatted to be input into SALib sampling
+    """
 
     n_vars = len(params)
 
@@ -202,23 +295,54 @@ def gen_problem(params):
 
 
 def proper_type(samples, params):
+    """Convert a numpy array into a structured array.
+
+    It converts a numpy array into a structured array to be able to
+    handle different datatypes. The different datatypes is used to build
+    a neural network.
+
+    Parameters
+    ----------
+    samples : numpy.ndarray
+        Matrix of samples
+    params : dict
+        Dictionary with the variables datatypes.
+
+    Returns
+    -------
+    numpy.recarray
+        Structured numpy array with different datatypes
+    """
     # Convertion to the numpy data types
-    # cvt = {"float": float, "int": int}
     cvt = {"float": "f8", "int": "i8"}
     # Create the dtypes
-    # dtype = {key: cvt[params[key]["type"]] for key in params.keys()}
     dtype = [(key, cvt[params[key]["type"]]) for key in params.keys()]
     # Create a dataframe with the cases to train
     smp_st = np.array(list(zip(*samples.T)), dtype=dtype)
-    # smp_df = pd.DataFrame(smp_sbl, columns=params.keys())
-    # smp_df = smp_df.astype(dtype)
     return smp_st
 
 
 # Plot
-
-
+# TODO: Plot documentation
 def plot_red_comp(original, reduced, var, n_dim, mse_global, alg="PCA"):
+    """
+    [extended_summary]
+
+    Parameters
+    ----------
+    original : [type]
+        [description]
+    reduced : [type]
+        [description]
+    var : [type]
+        [description]
+    n_dim : [type]
+        [description]
+    mse_global : [type]
+        [description]
+    alg : str, optional
+        [description], by default "PCA"
+    """
     # Calculate the MSE
     original = original[:, :, var]
     reduced = reduced[:, :, var]
