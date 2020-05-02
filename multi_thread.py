@@ -10,7 +10,19 @@ import h5py
 from utils import read_vtk
 
 
+# Producer thread
 def run(cmd):
+    """Run the passed command within the JSON passed arguments.
+    
+    The command to run must be accessible in the current running directory. The 
+    command arguments will be popped from the global variable 'args'. This is a producer thread, once finished the simulation it will put the results in a queue to be processed by the thread running the 'store_hdf5' function.
+
+    Parameters
+    ----------
+    cmd : str
+        Command to run in a multithread fashion.
+
+    """
     while len(args) > 0:
         # Get current arguments to simulate
         arg = args.pop(0)
@@ -36,7 +48,18 @@ def run(cmd):
         q.put((case, path + "/vtkData/", case_name + ".pvd"))
 
 
+# Consumer thread
 def store_hdf5(save_file):
+    """Store the generated .vtk files into a HDF5 file.
+
+    This is a consumer thread that waits the processing loops to pass a path to 
+    be read and stored.
+
+    Parameters
+    ----------
+    save_file : str
+        Path to the .vtk file to be processed.
+    """
     # Open the file
     h = h5py.File("./" + ppth + save_file, "w")
     # Storing loop
@@ -62,6 +85,11 @@ def store_hdf5(save_file):
 
 
 def main():
+    """Start the threads.
+
+    # Command example
+    # python multi_thread.py data.h5 rayleighBenard2d ./rayleighBenard2d args.json 2
+    """
     global stop_store
     # Generating commands
     commands = [command] * n_threads
@@ -110,6 +138,3 @@ if __name__ == "__main__":
     # Start
     main()
     pass
-
-# Command example
-# python multi_thread.py data.h5 rayleighBenard2d ./rayleighBenard2d args.json 2
