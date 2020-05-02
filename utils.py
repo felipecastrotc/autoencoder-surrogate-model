@@ -1,8 +1,6 @@
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
-import pyvista as pv
-import xmltodict
 
 # Read vtk files and store them in a hdf5 file
 def read_vtk(save_file, case, path, filename, h=None, close=True):
@@ -23,6 +21,9 @@ def read_vtk(save_file, case, path, filename, h=None, close=True):
     close : bool, optional
         Close the HDF5 file at the end of the function run, by default True
     """
+    import pyvista as pv
+    import xmltodict
+    
     if not h:
         h = h5py.File(save_file, "w")
 
@@ -42,7 +43,7 @@ def read_vtk(save_file, case, path, filename, h=None, close=True):
         coord = np.array(dt.points)
 
         # Get unique coordinates
-        unq, unq_idx = np.unique(coord, axis=0, return_index=True)
+        unq, _ = np.unique(coord, axis=0, return_index=True)
         # Sort the unique coordinates to get the step
         idx_sort = np.argsort(unq[:, 0], axis=0)
         # Get the steps inside the mesh

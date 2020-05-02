@@ -1,5 +1,5 @@
-# This is a step by step of reading the .vtk file and storing it inside a HDF5 
-# file. It can be easily converted to a Jupyter notebook or easily run as one 
+# This is a step by step of reading the .vtk file and storing it inside a HDF5
+# file. It can be easily converted to a Jupyter notebook or easily run as one
 # with the Visual Studio Code.
 
 # %%
@@ -10,34 +10,33 @@ import pyvista as pv
 import matplotlib.pyplot as plt
 
 # %%
-path = './dados/rayleigh-bernard_default/tmp/vtkData/'
-filename = 'rayleighBenard2d.pvd'
+path = "./dados/rayleigh-bernard_default/tmp/vtkData/"
+filename = "rayleighBenard2d.pvd"
 
 # Open the .pvd file
-f = open(path+filename)
+f = open(path + filename)
 data_paths = xmltodict.parse(f.read())
 f.close()
 
 # %%
 # Get the list of time steps
-data_paths = data_paths['VTKFile']['Collection']['DataSet']
+data_paths = data_paths["VTKFile"]["Collection"]["DataSet"]
 
 # Set the time step as a group property
 if len(data_paths) > 1:
-    time_step = int(data_paths[1]['@timestep']) - \
-        int(data_paths[0]['@timestep'])
+    time_step = int(data_paths[1]["@timestep"]) - int(data_paths[0]["@timestep"])
 else:
     time_step = 0
 
 # %%
 i = 50
 # Get the data step
-mesh = pv.read(path + data_paths[i]['@file'])
+mesh = pv.read(path + data_paths[i]["@file"])
 
 # %%
 # Plot meshes
 mk = 0.01
-c = ['r', 'b', 'g', 'k', 'y', 'm', 'c']
+c = ["r", "b", "g", "k", "y", "m", "c"]
 for j in range(7):
     plt.scatter(mesh[i][0].points[:, 0], mesh[i][0].points[:, 1], s=mk, c=c[i])
 
@@ -56,13 +55,13 @@ stp = np.unique(np.diff(unq[idx_sort, 0]))
 stp = stp[stp > 0]
 # Get the proper round values. Prevent float representation issues
 stp_dec = np.log10(stp).round()
-stp = stp.round(int(stp_dec[np.abs(stp_dec).argmax()]*-1))
+stp = stp.round(int(stp_dec[np.abs(stp_dec).argmax()] * -1))
 # Get the largest stp
 stp = np.max(stp)
 
 # %%
 # Transform the coordinates to index
-coord_idx = (coord/stp).astype(int)
+coord_idx = (coord / stp).astype(int)
 coord_idx[:, 0] = coord_idx[:, 0] - coord_idx[:, 0].min()
 coord_idx[:, 1] = coord_idx[:, 1] - coord_idx[:, 1].min()
 
@@ -77,8 +76,7 @@ for name in dt.array_names:
 
 # %%
 # Initialize the matrices
-dt_mtx = np.empty(
-    [coord_idx[:, 0].max()+1, coord_idx[:, 1].max()+1, n_dim])
+dt_mtx = np.empty([coord_idx[:, 0].max() + 1, coord_idx[:, 1].max() + 1, n_dim])
 
 # %%
 # Store the data
@@ -97,6 +95,6 @@ for j, name in enumerate(dt.array_names):
 plt.pcolormesh(dt_mtx[:, :, 1].T, rasterized=True)
 
 # %%
-h = h5py.File('data.h5')
-h['example/1'].attrs.keys()
+h = h5py.File("data.h5")
+h["example/1"].attrs.keys()
 h.close()
