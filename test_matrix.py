@@ -5,10 +5,6 @@ import json
 import matplotlib.pyplot as plt
 # import seaborn as sns
 
-# sns.set()
-
-# $10 ^ 3 < Ra < 10 ^ 7$ and $10 ^ {-1} < Pr < 70$
-# $0 °C < T_{hot} < 90 °C$ and the $1°C <$ $\Delta T$ $< 10°C$
 
 problem = {
     'num_vars': 4,
