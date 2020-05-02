@@ -1,3 +1,5 @@
+# This is an example of how to use the read_vtk function
+
 from utils import read_vtk
 
 # Data structure
