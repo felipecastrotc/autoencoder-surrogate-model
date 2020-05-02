@@ -1,11 +1,12 @@
 # read_vtk
 import h5py
-import numpy as np
-# import pyvista as p
-# import xmltodict
 import matplotlib.pyplot as plt
+import numpy as np
+import pyvista as pv
+import xmltodict
 
 # Read vtk files and store them in a hdf5 file
+
 
 def read_vtk(save_file, case, path, filename, h=None, close=True):
     if not h:
@@ -95,6 +96,7 @@ def read_vtk(save_file, case, path, filename, h=None, close=True):
 
 # Data manipulation functions
 
+
 def split(sz, n_train=0.8, n_valid=0.1, shuffle=True):
     # Split the data
     # Percentage for the test dataset
@@ -152,25 +154,33 @@ def format_data(dt, wd=20, var=None, get_y=False):
     # Create a slice from var
     if not var:
         var = slice(None)
+    slc_dims = [slice(None)] * (dt.ndim - 2) + [var]
     # Fill the matrix (sample, time, x, y, z)
     for i, idx in enumerate(idxs):
         for j in range(exp_fct):
-            slc = slice(idx[0] + wd * j, idx[0] + wd * (j + 1) - 1)
-            x_data[exp_fct * i + j, :, :, :, var] = dt[slc, :, :, var]
+            slc = [slice(idx[0] + wd * j, idx[0] + wd * (j + 1) - 1)]
+            slc += slc_dims
+            slc_set = [exp_fct * i + j]
+            slc_set += slc_dims
+            x_data[tuple(slc_set)] = dt[tuple(slc)]
             if get_y:
-                slc = idx[0] + wd * (j + 1)
-                y_data[exp_fct * i + j, :, :, var] = dt[slc, :, :, var]
+                slc = [idx[0] + (wd * j) + 1]
+                slc += slc_dims
+                y_data[tuple(slc_set)] = dt[tuple(slc)]
     if get_y:
         return x_data, y_data
     else:
         return x_data
 
+
 def flat_2d(data, div=0):
-    dim_1 = np.prod(data.shape[0:div+1], dtype=int)
-    dim_2 = np.prod(data.shape[div+1:], dtype=int)
+    dim_1 = np.prod(data.shape[0 : div + 1], dtype=int)
+    dim_2 = np.prod(data.shape[div + 1 :], dtype=int)
     return data.reshape((dim_1, dim_2))
 
+
 # Sensitivity analysis
+
 
 def gen_problem(params):
 
@@ -204,9 +214,11 @@ def proper_type(samples, params):
     # smp_df = smp_df.astype(dtype)
     return smp_st
 
+
 # Plot
 
-def plot_red_comp(original, reduced, var, n_dim, mse_global, alg='PCA'):
+
+def plot_red_comp(original, reduced, var, n_dim, mse_global, alg="PCA"):
     # Calculate the MSE
     original = original[:, :, var]
     reduced = reduced[:, :, var]

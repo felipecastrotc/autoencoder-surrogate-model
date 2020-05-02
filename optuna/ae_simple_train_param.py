@@ -238,19 +238,16 @@ plot_red_comp(org, rec, var, params["lt_sz"], 0, "AE")
 
 # Loaded Model
 get_custom_objects().update({"loss_norm_error": loss_norm_error})
-ae = load_model("model_ae-smp_4.h5")
+ae = load_model("smp_4-add_6.h5")
 ae.summary()
 
-# lt_sz = ae.layers[7].output.shape[1]
-# lt_sz += ae.layers[8].output.shape[1]
-lt_sz = 90
+lt_sz 90
 
 i = 634
-i = 99
+i = 1414
 var = 2
 org = dt[i]
-# org = trn[i]
 rec = np.squeeze(ae.predict(org[np.newaxis, :]))
 # ((org[:,:,var] - rec[:, :, var])/org[:,:,var]).min()
-loss = loss_norm_error_np(org, rec)
-plot_red_comp(org, rec, var, lt_sz, loss, "AE")
+plot_red_comp(org, rec, var, lt_sz, 0, "AE")
+
