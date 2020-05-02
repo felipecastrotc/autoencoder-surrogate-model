@@ -1,15 +1,15 @@
-# Redução dimensional
+# Dimensionality reduction
 
-## Arquiteturas
+## Autoencoder structures
 
-1. Simples $3^{x}$
+1. Simple $3^{x}$
    * 9@5x5_s2 - 18@5x5_s2 - 27@5x5_s5 - 100D - 1350D - 27@5x5_s5 - 18@5x5_s2 - 9@5x5_s2
    *  100x50      50x25       10x5     100x1   1350x1   50x25        100x50    200x100 
    * Parameters: 322,634
    * Batch: 64
    * @15 epochs mse: [0.0921, 0.1006, 0.0951]
   
-2. Simples $3^{x}$
+2. Simple $3^{x}$
    * 3@5x5_s2 - 9@5x5_s2 - 27@5x5_s5 - 100D - 1350D - 27@5x5_s5 - 9@5x5_s2 - 3@5x5_s2
    *  100x50      50x25       10x5     100x1   1350x1   50x25        100x50    200x100 
    * Parameters: 303,404
@@ -17,7 +17,7 @@
    * @15 epochs mse: [0.1005, 0.1044, 0.1044]
    * @3 epochs mse: [0.3901, 0.4124, 0.3780]
    * 
-3. Simples $3^{x}$
+3. Simple $3^{x}$
    * 3@5x5_s2 - 9@5x5_s2 - 27@5x5_s5 - 2@10x10 - 27@5x5_s5 - 9@5x5_s2 - 3@5x5_s2
    *  100x50      50x25       10x5      10x5      50x25       100x50    200x100 
    * Parameters: 20,481
