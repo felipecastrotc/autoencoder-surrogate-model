@@ -142,6 +142,21 @@ def clean_models(study):
 
 
 def main():
+    # Use Optuna to performa a hyperparameter optimisation
+    study = optuna.create_study(
+        direction="minimize", pruner=optuna.pruners.MedianPruner()
+    )
+
+    # Start the optimisation process
+    study.optimize(objective, n_trials=100, timeout=1600)
+    # Keep only the best model
+    clean_models(study)
+
+    # Save Optuna study
+    joblib.dump(study, study_nm.format(RUN_VERSION))
+
+
+if __name__ == "__main__":
     # Study naming
     study_nm = "study_d_v{}.pkl"
 
@@ -160,19 +175,4 @@ def main():
     # Current search run
     RUN_VERSION = 1
 
-    # Use Optuna to performa a hyperparameter optimisation
-    study = optuna.create_study(
-        direction="minimize", pruner=optuna.pruners.MedianPruner()
-    )
-
-    # Start the optimisation process
-    study.optimize(objective, n_trials=100, timeout=1600)
-    # Keep only the best model
-    clean_models(study)
-
-    # Save Optuna study
-    joblib.dump(study, study_nm.format(RUN_VERSION))
-
-
-if __name__ == "__main__":
     main()

@@ -187,21 +187,6 @@ def clean_models(study):
 
 
 def main():
-    # Study naming
-    study_nm = "study_smp_v{}.pkl"
-
-    # File to be used
-    DT_FL = "nn_data.h5"
-    # Dataset to be used
-    DT_DST = "scaled_data"
-
-    # Split train test and validation datasets
-    N_TRAIN = 0.8
-    N_VALID = 0.1
-
-    # Use Optuna to performa a hyperparameter optimisation
-    RUN_VERSION = 1
-
     # Current search run
     study = optuna.create_study(
         direction="minimize", pruner=optuna.pruners.MedianPruner()
@@ -217,4 +202,19 @@ def main():
 
 
 if __name__ == "__main__":
+    # Study naming
+    study_nm = "study_smp_v{}.pkl"
+
+    # File to be used
+    DT_FL = "nn_data.h5"
+    # Dataset to be used
+    DT_DST = "scaled_data"
+
+    # Split train test and validation datasets
+    N_TRAIN = 0.8
+    N_VALID = 0.1
+
+    # Use Optuna to performa a hyperparameter optimisation
+    RUN_VERSION = 1
+
     main()
