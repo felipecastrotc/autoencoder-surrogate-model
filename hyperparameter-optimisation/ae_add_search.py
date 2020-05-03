@@ -3,9 +3,7 @@ import os
 
 import h5py
 import keras.layers as layers
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 from keras import backend, optimizers, regularizers
 from keras.models import Model
@@ -17,8 +15,7 @@ from optuna.visualization import *
 from utils import slicer, split
 from utils_keras import loss_norm_error
 
-# https://waterprogramming.wordpress.com/2014/02/11/extensions-of-salib-for-more-complex-sensitivity-analyses/
-
+# Model name
 PREFIX = "model_ae-add_{}-"
 SUFFIX = "{}.h5"
 
@@ -52,21 +49,6 @@ def objective(trial):
     lt_dv = [0.3, 0.7]
     # Learning rate
     lm_lr = [1e-5, 1e-2]
-
-    # # Filters
-    # flt_lm = [[15, 20], [25, 35], [40, 80]]
-    # # Kernel
-    # k_lm = [5, 5]
-    # # Regularizer
-    # l2_lm = [1e-7, 1e-3]
-    # # Activation functions
-    # #act_opts = ["relu", "elu", "tanh", "linear"]
-    # act_opts = ["elu", "tanh", "linear"]
-    # # Latent space cfg
-    # lt_sz = [100, 130]
-    # lt_dv = [0.4, 0.6]
-    # # Learning rate
-    # lm_lr = [1e-3, 1e-3]
 
     # Clear tensorflow session
     tf.keras.backend.clear_session()
@@ -234,20 +216,37 @@ def clean_models(study):
     rm_mdls = glob.glob(PREFIX.format(RUN_VERSION) + "*")
     for mdl in rm_mdls:
         os.remove(mdl)
+
+
+def main():
+    # Study naming
+    study_nm = "study_add_v{}.pkl"
+
+    # File to be used
+    DT_FL = "nn_data.h5"
+    # Dataset to be used
+    DT_DST = "scaled_data"
+
+    # Split train test and validation datasets
+    N_TRAIN = 0.8
+    N_VALID = 0.1
+
+    # Current search run
+    RUN_VERSION = 6
+
+    # Use Optuna to performa a hyperparameter optimisation
+    study = optuna.create_study(
+        direction="minimize", pruner=optuna.pruners.MedianPruner()
+    )
+    # Start the optimisation process
+    study.optimize(objective, n_trials=100, timeout=1600)
+    # Keep only the best model
+    clean_models(study)
+
+    # Save Optuna study
+    joblib.dump(study, study_nm.format(RUN_VERSION))
+
+
+if __name__ == "__main__":
+    main()
     pass
-
-
-DT_FL = "nn_data.h5"
-DT_DST = "scaled_data"
-
-N_TRAIN = 0.8
-N_VALID = 0.1
-
-RUN_VERSION = 6
-
-study = optuna.create_study(direction="minimize", pruner=optuna.pruners.MedianPruner())
-
-study.optimize(objective, n_trials=30, timeout=800)
-clean_models(study)
-
-joblib.dump(study, "study_add_v{}.pkl".format(RUN_VERSION))

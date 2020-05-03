@@ -200,8 +200,6 @@ params = dict(
     batch={"bounds": [1, 16], "type": "int"},
 )
 
-3*3*3*2*3*3*3*3
-
 
 # The Saltelli sampler generates N∗(2*D+2)
 n_smp = 108  # multiple of 18

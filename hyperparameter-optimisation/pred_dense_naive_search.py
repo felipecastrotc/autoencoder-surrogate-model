@@ -3,9 +3,7 @@ import os
 
 import h5py
 import keras.layers as layers
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 from keras import backend, optimizers, regularizers
 from keras.models import Model
@@ -14,10 +12,10 @@ import joblib
 import optuna
 from optuna.integration import KerasPruningCallback
 from optuna.visualization import *
-from utils import slicer, split, format_data
+from utils import format_data, slicer, split
 from utils_keras import loss_norm_error
 
-
+# Model name
 PREFIX = "model_pred-d_{}-"
 SUFFIX = "{}.h5"
 
@@ -27,7 +25,7 @@ def objective(trial):
     # Open data file
     f = h5py.File(DT_FL, "r")
     dt = f[DT_DST]
-    
+
     # Format data for LSTM training
     x_data, y_data = format_data(dt, wd=WD, get_y=True)
 
@@ -81,13 +79,13 @@ def objective(trial):
             name="{}_dense".format(i + 1),
         )(p)
         # Dropout
-        dp = trial.suggest_uniform("d{}_dropout".format(i), 0 ,1)
+        dp = trial.suggest_uniform("d{}_dropout".format(i), 0, 1)
         p = layers.Dropout(dp, name="{}_dropout_dense".format(i + 1))(p)
-        bn = trial.suggest_categorical("d{}_batchnorm".format(i), [0 ,1])
+        bn = trial.suggest_categorical("d{}_batchnorm".format(i), [0, 1])
         if bn == 1:
-          p = layers.BatchNormalization(name="{}_bnorm_dense".format(i + 1))(p)
+            p = layers.BatchNormalization(name="{}_bnorm_dense".format(i + 1))(p)
 
-    out = layers.Dense(y_data.shape[1], activation='linear')(p)
+    out = layers.Dense(y_data.shape[1], activation="linear")(p)
 
     pred = Model(inputs, out, name="auto_encoder_add")
 
@@ -143,20 +141,38 @@ def clean_models(study):
     pass
 
 
-DT_FL = "data_compact.h5"
-DT_DST = "model_ae-smp_4_scaled"
+def main():
+    # Study naming
+    study_nm = "study_d_v{}.pkl"
 
-N_TRAIN = 0.8
-N_VALID = 0.1
+    # File to be used
+    DT_FL = "data_compact.h5"
+    # Dataset to be used
+    DT_DST = "model_ae-smp_4_scaled"
 
-WD = 2
+    # Split train test and validation datasets
+    N_TRAIN = 0.8
+    N_VALID = 0.1
 
-RUN_VERSION = 1
+    # Window size to be used to predict the next sample
+    WD = 2
 
-study = optuna.create_study(direction="minimize", pruner=optuna.pruners.MedianPruner())
+    # Current search run
+    RUN_VERSION = 1
 
-study.optimize(objective, n_trials=300, timeout=800)
-clean_models(study)
+    # Use Optuna to performa a hyperparameter optimisation
+    study = optuna.create_study(
+        direction="minimize", pruner=optuna.pruners.MedianPruner()
+    )
 
-# joblib.dump(study, "study_lstm_v{}.pkl".format(RUN_VERSION))
-joblib.dump(study, "study_d_v{}.pkl".format(RUN_VERSION))
+    # Start the optimisation process
+    study.optimize(objective, n_trials=100, timeout=1600)
+    # Keep only the best model
+    clean_models(study)
+
+    # Save Optuna study
+    joblib.dump(study, study_nm.format(RUN_VERSION))
+
+
+if __name__ == "__main__":
+    main()

@@ -3,9 +3,7 @@ import os
 
 import h5py
 import keras.layers as layers
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 from keras import backend, optimizers, regularizers
 from keras.models import Model
@@ -17,9 +15,7 @@ from optuna.visualization import *
 from utils import slicer, split
 from utils_keras import loss_norm_error
 
-# https://waterprogramming.wordpress.com/2014/02/11/extensions-of-salib-for-more-complex-sensitivity-analyses/
-
-
+# Model name
 PREFIX = "model_ae-smp_{}-"
 SUFFIX = "{}.h5"
 
@@ -190,17 +186,35 @@ def clean_models(study):
     pass
 
 
-DT_FL = "nn_data.h5"
-DT_DST = "scaled_data"
+def main():
+    # Study naming
+    study_nm = "study_smp_v{}.pkl"
 
-N_TRAIN = 0.8
-N_VALID = 0.1
+    # File to be used
+    DT_FL = "nn_data.h5"
+    # Dataset to be used
+    DT_DST = "scaled_data"
 
-RUN_VERSION = 1
+    # Split train test and validation datasets
+    N_TRAIN = 0.8
+    N_VALID = 0.1
 
-study = optuna.create_study(direction="minimize", pruner=optuna.pruners.MedianPruner())
+    # Use Optuna to performa a hyperparameter optimisation
+    RUN_VERSION = 1
 
-study.optimize(objective, n_trials=30, timeout=800)
-clean_models(study)
+    # Current search run
+    study = optuna.create_study(
+        direction="minimize", pruner=optuna.pruners.MedianPruner()
+    )
 
-joblib.dump(study, "study_smp_v{}.pkl".format(RUN_VERSION))
+    # Start the optimisation process
+    study.optimize(objective, n_trials=100, timeout=1600)
+    # Keep only the best model
+    clean_models(study)
+
+    # Save Optuna study
+    joblib.dump(study, study_nm.format(RUN_VERSION))
+
+
+if __name__ == "__main__":
+    main()

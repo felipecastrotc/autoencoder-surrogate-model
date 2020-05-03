@@ -3,9 +3,7 @@ import os
 
 import h5py
 import keras.layers as layers
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 from keras import backend, optimizers, regularizers
 from keras.callbacks import EarlyStopping
@@ -15,12 +13,10 @@ import joblib
 import optuna
 from optuna.integration import KerasPruningCallback
 from optuna.visualization import *
-from utils import slicer, split, format_data
+from utils import format_data, slicer, split
 from utils_keras import loss_norm_error
 
-# https://waterprogramming.wordpress.com/2014/02/11/extensions-of-salib-for-more-complex-sensitivity-analyses/
-
-
+# Model name
 PREFIX = "model_dec-nxt_{}-"
 SUFFIX = "{}.h5"
 
@@ -184,21 +180,39 @@ def clean_models(study):
     pass
 
 
-study_nm = "study_dec-nxt_v{}.pkl"
+def main():
+    # Study naming
+    study_nm = "study_dec-nxt_v{}.pkl"
 
-DT_FL_OUT = "nn_data.h5"
-DT_DST_OUT = "scaled_data"
+    # File to be used as output
+    DT_FL_OUT = "nn_data.h5"
+    # Dataset to be used as output
+    DT_DST_OUT = "scaled_data"
 
-DT_FL_IN = "data_compact.h5"
-DT_DST_IN = "model_ae-smp_4_scaled"
+    # File to be used as input
+    DT_FL_IN = "data_compact.h5"
+    # Dataset to be used as input
+    DT_DST_IN = "model_ae-smp_4_scaled"
 
-N_TRAIN = 0.8
-N_VALID = 0.1
+    # Split train test and validation datasets
+    N_TRAIN = 0.8
+    N_VALID = 0.1
 
-RUN_VERSION = 1
+    # Current search run
+    RUN_VERSION = 1
 
-study = optuna.create_study(direction="minimize", pruner=optuna.pruners.MedianPruner())
-study.optimize(objective, n_trials=2, timeout=800)
-clean_models(study)
+    # Use Optuna to performa a hyperparameter optimisation
+    study = optuna.create_study(
+        direction="minimize", pruner=optuna.pruners.MedianPruner()
+    )
+    # Start the optimisation process
+    study.optimize(objective, n_trials=100, timeout=1600)
+    # Keep only the best model
+    clean_models(study)
 
-joblib.dump(study, study_nm.format(RUN_VERSION))
+    # Save Optuna study
+    joblib.dump(study, study_nm.format(RUN_VERSION))
+
+
+if __name__ == "__main__":
+    main()
