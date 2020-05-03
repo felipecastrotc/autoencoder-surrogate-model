@@ -23,7 +23,7 @@ def read_vtk(save_file, case, path, filename, h=None, close=True):
     """
     import pyvista as pv
     import xmltodict
-    
+
     if not h:
         h = h5py.File(save_file, "w")
 
@@ -183,7 +183,7 @@ def slicer(shp, idxs, var=None):
     return tuple(slc)
 
 
-def format_data(dt, wd=20, var=None, get_y=False, idxs=None):
+def format_data(dt, wd=20, var=None, get_y=False, idxs=None, cont=False):
     """Format data to be compatible with LSTM layers from keras.
 
     It is specific for the HDF5 datasets being used when 'idxs' is not passed.
@@ -217,37 +217,46 @@ def format_data(dt, wd=20, var=None, get_y=False, idxs=None):
     # Get the simulation indexes
     if not idxs:
         idxs = dt.attrs["idx"]
-    n_t_stp = np.min(np.diff(idxs))
-    exp_fct = n_t_stp // wd
-    # Shape of the initialised array
+    # Create a slice from var
     if not var:
-        # Full array
-        init_x = (len(idxs) * exp_fct, wd - 1, *dt.shape[1:])
-        init_y = (len(idxs) * exp_fct, *dt.shape[1:])
+        var = slice(None)
     else:
-        # Only selected variable
-        init_x = (len(idxs) * exp_fct, wd - 1, *dt.shape[1:-1], 1)
-        init_y = (len(idxs) * exp_fct, *dt.shape[1:-1], 1)
+        var = slice(var, var + 1)
+    slc_dims = [slice(None)] * (dt.ndim - 2) + [var]
+    # Generate slices
+    slc_dt = []
+    slc_y = []
+    for idx in idxs:
+        if cont:
+            # Slide at every index
+            sld = -(wd - 1)
+            x_idx = np.arange(*idx)
+            y_idx = np.roll(x_idx, sld)[:sld]
+            x_idx = x_idx[:sld]
+        else:
+            # Slide every window
+            x_idx = np.arange(idx[0], idx[1], wd)
+            y_idx = np.arange(idx[0] + wd - 1, idx[1] + wd - 1, wd)
+        slc_dt += [[slice(i, j)] + slc_dims for i, j in zip(x_idx, y_idx)]
+        slc_y += [[i] + slc_dims for i in y_idx]
+
+    slc_x = np.arange(len(slc_y))
+
+    if var.start:
+        init_x = (len(slc_y), wd - 1, *dt.shape[1:-1], 1)
+        init_y = (len(slc_y), *dt.shape[1:-1], 1)
+    else:
+        init_x = (len(slc_y), wd - 1, *dt.shape[1:])
+        init_y = (len(slc_y), *dt.shape[1:])
     # Initialise array
     x_data = np.empty(init_x)
     if get_y:
         y_data = np.empty(init_y)
-    # Create a slice from var
-    if not var:
-        var = slice(None)
-    slc_dims = [slice(None)] * (dt.ndim - 2) + [var]
     # Fill the matrix (sample, time, x, y, z)
-    for i, idx in enumerate(idxs):
-        for j in range(exp_fct):
-            slc = [slice(idx[0] + wd * j, idx[0] + wd * (j + 1) - 1)]
-            slc += slc_dims
-            slc_set = [exp_fct * i + j]
-            slc_set += slc_dims
-            x_data[tuple(slc_set)] = dt[tuple(slc)]
-            if get_y:
-                slc = [idx[0] + (wd * j) + 1]
-                slc += slc_dims
-                y_data[tuple(slc_set)] = dt[tuple(slc)]
+    for sdt, sx, sy in zip(slc_dt, slc_x, slc_y):
+        x_data[sx] = dt[tuple(sdt)]
+        if get_y:
+            y_data[sx] = dt[tuple(sy)]
     if get_y:
         return x_data, y_data
     else:
