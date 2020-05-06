@@ -45,7 +45,6 @@ def objective(trial):
     act_opts = ["relu", "elu", "tanh", "linear"]
     # Latent space cfg
     lt_sz = [5, 150]
-    lt_dv = [0.3, 0.7]
     # Learning rate
     lm_lr = [1e-5, 1e-1]
 

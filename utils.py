@@ -110,7 +110,7 @@ def read_vtk(save_file, case, path, filename, h=None, close=True):
 
 
 # Data manipulation functions
-def split(sz, n_train=0.8, n_valid=0.1, shuffle=True):
+def split(sz, n_train=0.8, n_valid=0.1, shuffle=True, test_last=None):
     """Split the data in three different sets.
     
     Parameters
@@ -139,7 +139,14 @@ def split(sz, n_train=0.8, n_valid=0.1, shuffle=True):
     # Generate an index array
     idx = np.array(range(sz))
     # Get the datasets indexes
-    idx_tst = np.random.choice(idx, int(n_test * sz), replace=False)
+    if test_last is not None:
+        tst_sz = (n_test*np.diff(test_last))
+        tst_sz = np.squeeze(np.round(tst_sz).astype(int))
+        st_idx = test_last[:, 1] - tst_sz
+        tst_lst = [idx[i:j] for i, j in zip( st_idx, test_last[:, 1])]
+        idx_tst = np.hstack(tst_lst)
+    else:
+        idx_tst = np.random.choice(idx, int(n_test * sz), replace=False)
     idx = np.setdiff1d(idx, idx_tst, assume_unique=True)
 
     idx_vld = np.random.choice(idx, int(n_valid * sz), replace=False)
@@ -183,7 +190,7 @@ def slicer(shp, idxs, var=None):
     return tuple(slc)
 
 
-def format_data(dt, wd=20, var=None, get_y=False, idxs=None, cont=False):
+def format_data(dt, wd=20, var=None, get_y=False, idxs=None, cont=False, get_idx=False):
     """Format data to be compatible with LSTM layers from keras.
 
     It is specific for the HDF5 datasets being used when 'idxs' is not passed.
@@ -257,11 +264,18 @@ def format_data(dt, wd=20, var=None, get_y=False, idxs=None, cont=False):
         x_data[sx] = dt[tuple(sdt)]
         if get_y:
             y_data[sx] = dt[tuple(sy)]
+    
     if get_y:
-        return x_data, y_data
+        if get_idx:
+            out = (x_data, y_data, slc_y)
+        else:
+            out = (x_data, y_data)
     else:
-        return x_data
-
+        if get_idx:
+            out = (x_data, slc_y)
+        else:
+            out = x_data
+    return out
 
 def flat_2d(data, div=0):
     dim_1 = np.prod(data.shape[0 : div + 1], dtype=int)
