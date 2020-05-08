@@ -17,23 +17,27 @@ from utils import format_data, slicer, split
 from utils_keras import loss_norm_error
 
 # Model name
-PREFIX = "model_pred-lstm_v{}-"
+PREFIX = "model_pred-dec_v{}-"
 SUFFIX = "{}.h5"
 
 
 def objective(trial):
 
     # Open data file
-    f = h5py.File(DT_FL, "r")
-    dt = f[DT_DST]
+    f_in = h5py.File(DT_FL_IN, "r")
+    dt_in = f_in[DT_DST_IN]
 
-    wd = trial.suggest_int("wd_size", 2, 10)
+    f_out = h5py.File(DT_FL_OUT, "r")
+    dt_out = f_out[DT_DST_OUT]
 
-    # Format data for LSTM training
-    x_data, y_data = format_data(dt, wd=wd, get_y=True, cont=True)
+    WD = 2
+    # Dummy y_data
+    x_data, _ = format_data(dt_in, wd=WD, get_y=True)
+    _, y_data = format_data(dt_out, wd=WD, get_y=True)
+    x_data = np.squeeze(x_data)
 
     # Split data and get slices
-    idxs = split(x_data.shape[0], N_TRAIN, N_VALID, test_last=dt.attrs["idx"])
+    idxs = split(x_data.shape[0], N_TRAIN, N_VALID, test_last=dt_in.attrs["idx"])
     slc_trn, slc_vld, slc_tst = slicer(x_data.shape, idxs)
 
     # Get data
@@ -42,72 +46,94 @@ def objective(trial):
     x_val = x_data[slc_vld[0]]
     y_val = y_data[slc_vld[0]]
 
+    conv_shape = y_train.shape[1:3]
+    # Strides cfg
+    strd = [2, 2, 5, 5]
+
     # Limits and options
-    epochs = 300
-    # Number of cells
-    n_lstm = [[4, 128], [4, 128]]
+    epochs = 60
+    # Filters
+    flt_lm = [[4, 128], [4, 128], [4, 128]]
+    d_lm = [1, 50]
+    # Kernel
+    k_lm = [3, 5]
     # Regularizer
     l2_lm = [1e-7, 1e-3]
     # Activation functions
     act_opts = ["relu", "elu", "tanh", "linear"]
+    # Latent space cfg
+    lt_sz = [5, 150]
+    lt_dv = [0.3, 0.7]
     # Learning rate
-    lm_lr = [1e-5, 1]
+    lm_lr = [1e-5, 1e-1]
 
     # Clear tensorflow session
     tf.keras.backend.clear_session()
     # Input
     inputs = layers.Input(shape=x_train.shape[1:])
-    p = inputs
-    # LSTM layers
-    n_lyr_lstm = trial.suggest_int("n_lyr_lstm", 1, 2)
-    for i in range(n_lyr_lstm):
-        # For the current layer
+    d = inputs
+    # Decoder
+    n_layers = trial.suggest_int("n_layers", 1, 3)
+    flt = trial.suggest_int("nl_flt", d_lm[0], d_lm[1])
+    # Reduction from output
+    red = np.prod(strd[:n_layers])
+    # Decoder first shape
+    lt_shp = (np.array(conv_shape) / red).astype(int)
+    # Decoder dense size
+    n_flat = np.prod(lt_shp) * flt
+    # Format stride list
+    strd = strd[::-1][-n_layers:]
+    # Latent -> Decoder layer
+    # Activation
+    act_lt = trial.suggest_categorical("lt_activation", act_opts)
+    # Regularization
+    l2_lt = int(trial.suggest_loguniform("lt_l2", l2_lm[0], l2_lm[1]))
+    l2_reg = regularizers.l2(l=l2_lt)
+    # Flat input to the decoder
+    d = layers.Dense(
+        n_flat, activation=act_lt, kernel_regularizer=l2_reg, name="l1_dense_decoder"
+    )(inputs)
+    # Reshape to the output of the encoder
+    d = layers.Reshape(list(lt_shp) + [flt])(d)
+    # Generate the convolutional layers
+    for i in range(n_layers):
         # Get number of filters
-        l = trial.suggest_int("n{}_lstm".format(i), n_lstm[i][0], n_lstm[i][1])
-        # Get the activation function
-        act = trial.suggest_categorical("l{}_activation".format(i), act_opts)
-        # Regularization value
-        l2 = trial.suggest_loguniform("l{}_l2".format(i), l2_lm[0], l2_lm[1])
-        l2_reg = regularizers.l2(l=l2)
-        # Set layer
-        p = layers.LSTM(
-            l,
-            activation=act,
-            kernel_regularizer=l2_reg,
-            return_sequences=n_lyr_lstm - 1 != i,
-            name="{}_lstm".format(i + 1),
-        )(p)
-        # Dropout
-        dp = trial.suggest_uniform("l{}_dropout".format(i), 0, 1)
-        p = layers.Dropout(dp, name="{}_dropout_lstm".format(i + 1))(p)
-        # p = layers.BatchNormalization(name="{}_bnorm_lstm".format(i + 1))(p)
-
-    # Dense layers
-    n_lyr_dense = trial.suggest_int("n_lyr_dense", 0, 2)
-    for i in range(n_lyr_dense):
-        # For the current layer
-        # Get number of filters
-        l = trial.suggest_int("n{}_dense".format(i), n_lstm[i][0], n_lstm[i][1])
+        flt = trial.suggest_int("n{}_flt".format(i), flt_lm[i][0], flt_lm[i][1])
+        # Get the kernel size
+        k_sz = trial.suggest_categorical("d{}_kernel_size".format(i), k_lm)
         # Get the activation function
         act = trial.suggest_categorical("d{}_activation".format(i), act_opts)
         # Regularization value
         l2 = trial.suggest_loguniform("d{}_l2".format(i), l2_lm[0], l2_lm[1])
         l2_reg = regularizers.l2(l=l2)
-        # Set layer
-        p = layers.Dense(
-            l, activation=act, kernel_regularizer=l2_reg, name="{}_dense".format(i + 1),
-        )(p)
-        # Dropout
-        dp = trial.suggest_uniform("d{}_dropout".format(i), 0, 1)
-        p = layers.Dropout(dp, name="{}_dropout_dense".format(i + 1))(p)
+        # Convolutional layer
+        d = layers.Conv2DTranspose(
+            flt,
+            (k_sz, k_sz),
+            strides=strd[i],
+            activation=act,
+            padding="same",
+            kernel_regularizer=l2_reg,
+            name="{}_decoder".format(i + 1),
+        )(d)
+        dp = 0
+        # Dropout layers
+        if dp > 0:
+            d = layers.Dropout(dp, name="{}_dropout_decoder".format(i + 1))(d)
 
-    out = layers.Dense(x_data.shape[2], activation="linear")(p)
+    decoded = layers.Conv2DTranspose(
+        y_train.shape[3],
+        (5, 5),
+        activation="linear",
+        padding="same",
+        name="output_decoder",
+    )(d)
 
-    pred = Model(inputs, out, name="Prediction LSTM")
+    ae = Model(inputs, decoded, name="Decoder_nxt")
 
     # Earling stopping monitoring the loss of the validation dataset
     monitor = "val_loss_norm_error"
-    patience = int(epochs * 0.1)
+    patience = int(epochs * 0.3)
     es = EarlyStopping(
         monitor=monitor, mode="min", patience=patience, restore_best_weights=True
     )
@@ -119,8 +145,6 @@ def objective(trial):
         k_optf = optimizers.Nadam
     elif opt == "adamax":
         k_optf = optimizers.Adamax
-    elif opt == "RMSprop":
-        k_optf = optimizers.RMSprop
 
     lr = trial.suggest_loguniform("lr", lm_lr[0], lm_lr[1])
     if lr > 0:
@@ -128,13 +152,11 @@ def objective(trial):
     else:
         k_opt = k_optf()
 
-    pred.compile(
-        optimizer=k_opt, loss=loss_norm_error, metrics=["mse", loss_norm_error]
-    )
+    ae.compile(optimizer=k_opt, loss=loss_norm_error, metrics=["mse", loss_norm_error])
 
     batch_size = int(trial.suggest_uniform("batch_sz", 2, 32))
-    pred.summary()
-    hist = pred.fit(
+    ae.summary()
+    hist = ae.fit(
         x_train,
         y_train,
         epochs=epochs,
@@ -146,7 +168,7 @@ def objective(trial):
     )
 
     txt = PREFIX + SUFFIX
-    pred.save(txt.format(RUN_VERSION, trial.number))
+    ae.save(txt.format(RUN_VERSION, trial.number))
     return min(hist.history["val_loss_norm_error"])
 
 
@@ -180,19 +202,19 @@ def main():
 
 if __name__ == "__main__":
     # Study naming
-    study_nm = "study_lstm_v{}.pkl"
+    study_nm = "study_dec_v{}.pkl"
 
-    # File to be used
-    DT_FL = "data_compact.h5"
-    # Dataset to be used
-    DT_DST = "model_ae-smp_4_scaled"
+    # File to be used from the reduced dimensions
+    DT_FL_IN = "data_compact.h5"
+    DT_DST_IN = "model_ae-smp_4_scaled"
+
+    # Simulated file to be used
+    DT_FL_OUT = "nn_data.h5"
+    DT_DST_OUT = "scaled_data"
 
     # Split train test and validation datasets
     N_TRAIN = 0.8
     N_VALID = 0.1
-
-    # Window size to be used to predict the next sample
-    WD = 3
 
     # Current search run
     RUN_VERSION = 1

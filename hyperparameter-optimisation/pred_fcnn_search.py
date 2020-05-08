@@ -17,7 +17,7 @@ from utils import format_data, slicer, split
 from utils_keras import loss_norm_error
 
 # Model name
-PREFIX = "model_pred-lstm_v{}-"
+PREFIX = "model_pred-fcnn_v{}-"
 SUFFIX = "{}.h5"
 
 
@@ -27,83 +27,54 @@ def objective(trial):
     f = h5py.File(DT_FL, "r")
     dt = f[DT_DST]
 
-    wd = trial.suggest_int("wd_size", 2, 10)
+    y_data = np.empty_like(dt)
+    for idx in dt.attrs["idx"]:
+        y_data[idx[0] : idx[1]] = np.gradient(dt[idx[0] : idx[1]], 10, axis=0)
 
-    # Format data for LSTM training
-    x_data, y_data = format_data(dt, wd=wd, get_y=True, cont=True)
+    # Split data file
+    idxs = split(dt.shape[0], N_TRAIN, N_VALID, test_last=dt.attrs["idx"])
+    slc_trn, slc_vld, slc_tst = slicer(dt.shape, idxs)
 
-    # Split data and get slices
-    idxs = split(x_data.shape[0], N_TRAIN, N_VALID, test_last=dt.attrs["idx"])
-    slc_trn, slc_vld, slc_tst = slicer(x_data.shape, idxs)
-
-    # Get data
-    x_train = x_data[slc_trn[0]]
-    y_train = y_data[slc_trn[0]]
-    x_val = x_data[slc_vld[0]]
-    y_val = y_data[slc_vld[0]]
+    # Slice data
+    x_train = dt[slc_trn]
+    y_train = y_data[slc_trn]
+    x_val = dt[slc_vld]
+    y_val = y_data[slc_vld]
 
     # Limits and options
-    epochs = 300
-    # Number of cells
-    n_lstm = [[4, 128], [4, 128]]
+    epochs = 500
+    # Filters
+    n_n = [[30, 150], [30, 150]]
     # Regularizer
-    l2_lm = [1e-7, 1e-3]
+    l2_lm = [1e-7, 1e-2]
     # Activation functions
     act_opts = ["relu", "elu", "tanh", "linear"]
     # Learning rate
-    lm_lr = [1e-5, 1]
+    lm_lr = [1e-5, 1e-1]
 
     # Clear tensorflow session
     tf.keras.backend.clear_session()
     # Input
     inputs = layers.Input(shape=x_train.shape[1:])
-    p = inputs
-    # LSTM layers
-    n_lyr_lstm = trial.suggest_int("n_lyr_lstm", 1, 2)
-    for i in range(n_lyr_lstm):
+    d = inputs
+    # FCNN
+    n_layers = trial.suggest_int("n_layers", 1, 2)
+    for i in range(n_layers):
         # For the current layer
         # Get number of filters
-        l = trial.suggest_int("n{}_lstm".format(i), n_lstm[i][0], n_lstm[i][1])
+        n = trial.suggest_int("l{}_n_neurons".format(i), n_n[i][0], n_n[i][1])
         # Get the activation function
         act = trial.suggest_categorical("l{}_activation".format(i), act_opts)
         # Regularization value
         l2 = trial.suggest_loguniform("l{}_l2".format(i), l2_lm[0], l2_lm[1])
         l2_reg = regularizers.l2(l=l2)
         # Set layer
-        p = layers.LSTM(
-            l,
-            activation=act,
-            kernel_regularizer=l2_reg,
-            return_sequences=n_lyr_lstm - 1 != i,
-            name="{}_lstm".format(i + 1),
-        )(p)
-        # Dropout
-        dp = trial.suggest_uniform("l{}_dropout".format(i), 0, 1)
-        p = layers.Dropout(dp, name="{}_dropout_lstm".format(i + 1))(p)
-        # p = layers.BatchNormalization(name="{}_bnorm_lstm".format(i + 1))(p)
+        d = layers.Dense(
+            n, activation=act, kernel_regularizer=l2_reg, name="l{}_fc".format(i),
+        )(d)
+    dd = layers.Dense(x_train.shape[1], activation="linear")(d)
 
-    # Dense layers
-    n_lyr_dense = trial.suggest_int("n_lyr_dense", 0, 2)
-    for i in range(n_lyr_dense):
-        # For the current layer
-        # Get number of filters
-        l = trial.suggest_int("n{}_dense".format(i), n_lstm[i][0], n_lstm[i][1])
-        # Get the activation function
-        act = trial.suggest_categorical("d{}_activation".format(i), act_opts)
-        # Regularization value
-        l2 = trial.suggest_loguniform("d{}_l2".format(i), l2_lm[0], l2_lm[1])
-        l2_reg = regularizers.l2(l=l2)
-        # Set layer
-        p = layers.Dense(
-            l, activation=act, kernel_regularizer=l2_reg, name="{}_dense".format(i + 1),
-        )(p)
-        # Dropout
-        dp = trial.suggest_uniform("d{}_dropout".format(i), 0, 1)
-        p = layers.Dropout(dp, name="{}_dropout_dense".format(i + 1))(p)
-
-    out = layers.Dense(x_data.shape[2], activation="linear")(p)
-
-    pred = Model(inputs, out, name="Prediction LSTM")
+    fcnn = Model(inputs, dd, name="FCNN")
 
     # Earling stopping monitoring the loss of the validation dataset
     monitor = "val_loss_norm_error"
@@ -119,8 +90,6 @@ def objective(trial):
         k_optf = optimizers.Nadam
     elif opt == "adamax":
         k_optf = optimizers.Adamax
-    elif opt == "RMSprop":
-        k_optf = optimizers.RMSprop
 
     lr = trial.suggest_loguniform("lr", lm_lr[0], lm_lr[1])
     if lr > 0:
@@ -128,13 +97,13 @@ def objective(trial):
     else:
         k_opt = k_optf()
 
-    pred.compile(
+    fcnn.compile(
         optimizer=k_opt, loss=loss_norm_error, metrics=["mse", loss_norm_error]
     )
 
     batch_size = int(trial.suggest_uniform("batch_sz", 2, 32))
-    pred.summary()
-    hist = pred.fit(
+    fcnn.summary()
+    hist = fcnn.fit(
         x_train,
         y_train,
         epochs=epochs,
@@ -146,7 +115,8 @@ def objective(trial):
     )
 
     txt = PREFIX + SUFFIX
-    pred.save(txt.format(RUN_VERSION, trial.number))
+
+    fcnn.save(txt.format(RUN_VERSION, trial.number))
     return min(hist.history["val_loss_norm_error"])
 
 
@@ -180,7 +150,7 @@ def main():
 
 if __name__ == "__main__":
     # Study naming
-    study_nm = "study_lstm_v{}.pkl"
+    study_nm = "study_fcnn_v{}.pkl"
 
     # File to be used
     DT_FL = "data_compact.h5"
