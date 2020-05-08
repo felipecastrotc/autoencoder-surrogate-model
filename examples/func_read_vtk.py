@@ -8,11 +8,11 @@ from utils import read_vtk
 # Properties of case -> simulation parameters, time step
 
 # File to save
-save_file = './dados/data.h5'
+save_file = './data/data.h5'
 case = 'example'
 
 # File to read
-path = './dados/rayleigh-bernard_default/tmp/vtkData/'
+path = './data/rayleigh-bernard_default/tmp/vtkData/'
 filename = 'rayleighBenard2d.pvd'
 
 read_vtk(save_file, case, path, filename)

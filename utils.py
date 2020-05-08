@@ -1,5 +1,6 @@
 import h5py
 import matplotlib.pyplot as plt
+from matplotlib import animation
 import numpy as np
 
 # Read vtk files and store them in a hdf5 file
@@ -140,10 +141,10 @@ def split(sz, n_train=0.8, n_valid=0.1, shuffle=True, test_last=None):
     idx = np.array(range(sz))
     # Get the datasets indexes
     if test_last is not None:
-        tst_sz = (n_test*np.diff(test_last))
+        tst_sz = n_test * np.diff(test_last)
         tst_sz = np.squeeze(np.round(tst_sz).astype(int))
         st_idx = test_last[:, 1] - tst_sz
-        tst_lst = [idx[i:j] for i, j in zip( st_idx, test_last[:, 1])]
+        tst_lst = [idx[i:j] for i, j in zip(st_idx, test_last[:, 1])]
         idx_tst = np.hstack(tst_lst)
     else:
         idx_tst = np.random.choice(idx, int(n_test * sz), replace=False)
@@ -264,7 +265,7 @@ def format_data(dt, wd=20, var=None, get_y=False, idxs=None, cont=False, get_idx
         x_data[sx] = dt[tuple(sdt)]
         if get_y:
             y_data[sx] = dt[tuple(sy)]
-    
+
     if get_y:
         if get_idx:
             out = (x_data, y_data, slc_y)
@@ -276,6 +277,7 @@ def format_data(dt, wd=20, var=None, get_y=False, idxs=None, cont=False, get_idx
         else:
             out = x_data
     return out
+
 
 def flat_2d(data, div=0):
     dim_1 = np.prod(data.shape[0 : div + 1], dtype=int)
@@ -348,7 +350,7 @@ def proper_type(samples, params):
 
 # Plot
 # TODO: Plot documentation
-def plot_red_comp(original, reduced, var, n_dim, mse_global, alg="PCA"):
+def plot_red_comp(org, red, var, n_dim, loss, alg="PCA", loss_nm="MSE", anim=0):
     """
     [extended_summary]
 
@@ -367,18 +369,116 @@ def plot_red_comp(original, reduced, var, n_dim, mse_global, alg="PCA"):
     alg : str, optional
         [description], by default "PCA"
     """
-    # Calculate the MSE
-    original = original[:, :, var]
-    reduced = reduced[:, :, var]
-    mse = np.mean((original - reduced) ** 2)
-    vmax = original.max()
-    vmin = original.min()
+    if var:
+        if type(var) is not list:
+            var = [var]
+    else:
+        var = list(range(org.shape[-1]))
+
+    # Figure size dictionary
+    figsize = {1: (8, 8), 2: (16, 8), 3: (15, 5)}
     # Generate the subplot figure
-    fig, ax = plt.subplots(2, figsize=(8, 8))
-    tit = "Global MSE: {:.4f}  Case MSE: {:.4f}".format(mse_global, mse)
+    fig, ax = plt.subplots(2, len(var), figsize=(figsize[len(var)]))
+    # Generate a list of axis compatible with a matrix of axis
+    if len(var) == 1:
+        ax = [[a] for a in ax]
+    # Iterate over the variables
+    for i, v in enumerate(var):
+        var_org = org[:, :, v]
+        var_red = red[:, :, v]
+        mse = np.mean((var_org - var_red) ** 2)
+        vmax = var_org.max()
+        vmin = var_org.min()
+
+        # Set the upper figures title
+        if len(var) > 1:
+            tit = "Original data - MSE: {:.4f}".format(mse)
+        else:
+            tit = "Original data"
+        ax[0][i].pcolormesh(var_org.T, rasterized=True)
+        ax[1][i].pcolormesh(var_red.T, vmax=vmax, vmin=vmin, rasterized=True)
+        ax[0][i].set_title(tit)
+        ax[1][i].set_title("{} with {} dimensions".format(alg, n_dim))
+    # Properties according to the number of variables
+    if len(var) > 1:
+        tit = "Global {}: {:.4f}".format(loss_nm, loss)
+    else:
+        tit = "Global {}: {:.4f}  Case MSE: {:.4f}".format(loss_nm, loss, mse)
+    # Set the figure title
     fig.suptitle(tit, y=1.02)
     fig.tight_layout(pad=2)
-    ax[0].pcolormesh(original.T, rasterized=True)
-    ax[1].pcolormesh(reduced.T, vmax=vmax, vmin=vmin, rasterized=True)
-    ax[0].set_title("Original data")
-    ax[1].set_title("{} with {} dimensions".format(alg, n_dim))
+
+
+
+def anim_comp(org, red, var, alg="LSTM", n_dim=None):
+    def animate(i):
+
+        for j, v in enumerate(var):
+            # Set view for the first frame
+            var_org = org[i, :, :, v]
+            var_red = red[i, :, :, v]
+            mse = np.mean((var_org - var_red) ** 2)
+            # Plot
+            porg[j].set_array(var_org.T.flatten())
+            pred[j].set_array(var_red.T.flatten())
+            # Set the upper figures title
+            if len(var) > 1:
+                tit = "Frame: {} - Original data - MSE: {:.4f}".format(i, mse)
+            else:
+                tit = "Frame: {} - Original data".format(i)
+            ax[0][j].set_title(tit)
+            ax[1][j].set_title("{} with {} dimensions".format(alg, n_dim))
+
+    if var:
+        if type(var) is not list:
+            var = [var]
+        else:
+            var = list(range(org.shape[-1]))
+
+    # Figure size dictionary
+    figsize = {1: (8, 8), 2: (16, 8), 3: (12, 4)}
+    # Generate the subplot figure
+    fig, ax = plt.subplots(2, len(var), figsize=(figsize[len(var)]))
+    # Generate a list of axis compatible with a matrix of axis
+    if len(var) == 1:
+        ax = [[a] for a in ax]
+    # Variables range
+    vmax, vmin = [], []
+    porg, pred = [], []
+    # Iterate over the variables
+    for i, v in enumerate(var):
+        vmax += [org[:, :, :, v].max()]
+        vmin += [org[:, :, :, v].min()]
+        # Set view for the first frame
+        var_org = org[0, :, :, v]
+        var_red = red[0, :, :, v]
+        mse = np.mean((var_org - var_red) ** 2)
+        # Plot
+        porg += [
+            ax[0][i].pcolormesh(var_org.T, vmax=vmax[i], vmin=vmin[i], rasterized=True)
+        ]
+        pred += [
+            ax[1][i].pcolormesh(var_red.T, vmax=vmax[i], vmin=vmin[i], rasterized=True)
+        ]
+        # Set the upper figures title
+        if len(var) > 1:
+            tit = "Original data - MSE: {:.4f}".format(mse)
+        else:
+            tit = "Original data"
+        ax[0][i].set_title(tit)
+        ax[1][i].set_title("{} with {} dimensions".format(alg, n_dim))
+
+    # Set the figure title
+    all_mse = np.mean((org - red) ** 2)
+    # Properties according to the number of variables
+    if len(var) > 1:
+        tit = "Global {}: {:.4f}".format("MSE", all_mse)
+    else:
+        tit = "Global {}: {:.4f}  Case MSE: {:.4f}".format("MSE", all_mse, mse)
+    # Set the figure title
+    fig.suptitle(tit, y=1.02)
+    fig.tight_layout(pad=2)
+    anim = animation.FuncAnimation(fig, animate, frames=org.shape[0], interval=200)
+    plt.close()
+    return anim
+

@@ -10,7 +10,7 @@ import pyvista as pv
 import matplotlib.pyplot as plt
 
 # %%
-path = "./dados/rayleigh-bernard_default/tmp/vtkData/"
+path = "./data/rayleigh-bernard_default/tmp/vtkData/"
 filename = "rayleighBenard2d.pvd"
 
 # Open the .pvd file
