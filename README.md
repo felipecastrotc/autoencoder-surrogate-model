@@ -24,13 +24,12 @@ To simulate the Rayleigh-Bénard convection problem using the OpenLB it is neces
 
 |                   | Min.           | Max.            |
 |-------------------|----------------|-----------------|
-| Rayleigh number   | $10^3$         | $10^6$          |
-| Prantdl number    | $0.1$          | $70$            |
-| Fluid temperature | $10 °C$        | $100 °C$        |
-| $\delta T$        | $1 °C$         | $10 °C$         |
+| Rayleigh number   | ![](http://latex.codecogs.com/gif.latex?10^3) | ![](http://latex.codecogs.com/gif.latex?10^6) |
+| Prantdl number    | ![](http://latex.codecogs.com/gif.latex?0.1)  | ![](http://latex.codecogs.com/gif.latex?70)   |
+| Fluid temperature | ![](http://latex.codecogs.com/gif.latex?10\degree&space;C) | ![](http://latex.codecogs.com/gif.latex?100\degree&space;C) |
+| ![](http://latex.codecogs.com/gif.latex?\Delta&space;T) | ![](http://latex.codecogs.com/gif.latex?1\degree&space;C) | ![](http://latex.codecogs.com/gif.latex?10\degree&space;C) |
 
-
-Finally, using the Sobol sequence with the ranges of the variables presented above, it was initially generated a test matrix of $30$ experiments. It is generated using the Python script [`test_matrix.py`](test_matrix.py).
+Finally, using the Sobol sequence with the ranges of the variables presented above, it was initially generated a test matrix of 30 experiments. It is generated using the Python script [`test_matrix.py`](test_matrix.py).
 
 
 ### Run test matrix
@@ -58,9 +57,9 @@ An example of the command to run the simulation:
 
 As commonly known, the preprocessing data step is important for neural networks and machine learning algorithms. Thus, after generated the HDF5 file by [`multi_thread.py`](multi_thread.py) script, the data was preprocessed to remove cases where there were positive or negative infinity values or not a number values in any of the time steps of a given simulation. Moreover, after pruning the cases with invalid values, the remained cases were standardized, according to:
 
-$$x_{std} = \frac{x - \mu}{\sigma},$$
+![](http://latex.codecogs.com/gif.latex?x_{std}=\frac{x-\mu}{\sigma})
 
-where $\mu$ and $\sigma$ are the mean and standard deviation of $x$. These steps are executed by the Python script [`pre_proc_open_lb.py`](pre_proc_open_lb.py). It outputs a new HDF5 file where the scaled and unscaled data are stored.
+where μ and σ are the mean and standard deviation of x. These steps are executed by the Python script [`pre_proc_open_lb.py`](pre_proc_open_lb.py). It outputs a new HDF5 file where the scaled and unscaled data are stored. The script mix the data from all study cases as a single dataset. In this case, the dataset has four dimensions, the first dimension is the sample, the second and third are the spatial distribution and the third the problem output variables, which are in this order pressure, temperature and velocity. After preprocessed the simulated data from OpenLB, 16 simulations were found to have some problems related to positive or negative infinity values or not a number values. Therefore, they were removed from the analysis, and only 14 were kept.
 
 
 ## Dimensionality reduction
