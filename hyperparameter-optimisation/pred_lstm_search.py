@@ -191,9 +191,6 @@ if __name__ == "__main__":
     N_TRAIN = 0.8
     N_VALID = 0.1
 
-    # Window size to be used to predict the next sample
-    WD = 3
-
     # Current search run
     RUN_VERSION = 1
 
